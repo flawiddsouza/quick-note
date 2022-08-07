@@ -5,27 +5,7 @@ const store = useStore()
 
 store.loadCategories()
 
-const vOnLongPress = {
-    mounted(element, binding)  {
-        let timer
-
-        element.addEventListener('touchstart', () => {
-            timer = setTimeout(() => {
-                timer = null
-                binding.value()
-            }, 500)
-        })
-
-        function cancel() {
-            clearTimeout(timer)
-        }
-
-        element.addEventListener('touchend', cancel)
-        element.addEventListener('touchmove', cancel)
-    }
-}
-
-function openCategoryContextMenu(category) {
+function openCategoryContextMenu(event, category) {
     alert('long pressed on ' + category.name)
 }
 
@@ -35,7 +15,7 @@ function viewCategory(category) {
 </script>
 
 <template>
-    <div v-for="category in store.categories" class="item" v-on-long-press="() => openCategoryContextMenu(category)" @click="viewCategory(category)">{{ category.name }}</div>
+    <div v-for="category in store.categories" class="item" @contextmenu.prevent="openCategoryContextMenu($event, category)" @click="viewCategory(category)">{{ category.name }}</div>
 </template>
 
 <style scoped>

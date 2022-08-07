@@ -3,27 +3,7 @@ import { useStore } from '../store'
 
 const store = useStore()
 
-const vOnLongPress = {
-    mounted(element, binding)  {
-        let timer
-
-        element.addEventListener('touchstart', () => {
-            timer = setTimeout(() => {
-                timer = null
-                binding.value()
-            }, 500)
-        })
-
-        function cancel() {
-            clearTimeout(timer)
-        }
-
-        element.addEventListener('touchend', cancel)
-        element.addEventListener('touchmove', cancel)
-    }
-}
-
-function openNoteContextMenu(note) {
+function openNoteContextMenu(event, note) {
     alert('long pressed on ' + note.title)
 }
 
@@ -35,7 +15,7 @@ store.loadNotes()
 </script>
 
 <template>
-    <div v-for="note in store.filteredNotes" class="item" v-on-long-press="() => openNoteContextMenu(note)" @click="viewNote(note)">{{ note.title }}</div>
+    <div v-for="note in store.filteredNotes" class="item" @contextmenu.prevent="openNoteContextMenu($event, note)" @click="viewNote(note)">{{ note.title }}</div>
 </template>
 
 <style scoped>
