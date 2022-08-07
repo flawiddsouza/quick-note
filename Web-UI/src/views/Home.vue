@@ -14,6 +14,10 @@ const vFocus = {
         element.focus()
     }
 }
+
+function addCategory() {
+    alert('Add Category Clicked')
+}
 </script>
 
 <template>
@@ -46,7 +50,16 @@ const vFocus = {
             </transition>
             <transition name="slide">
                 <div class="drawer" v-if="drawerOpen">
-                    <CategoryList />
+                    <div style="position: relative; height: 100%;">
+                        <div style="position: absolute; width: 100%; height: 100%; overflow-y: auto;">
+                            <CategoryList />
+                        </div>
+                        <div style="position: absolute; bottom: 1rem; right: 1rem;">
+                            <div class="app-action-button" @click="addCategory">
+                                <div class="app-action-button-inner">+</div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </transition>
             <div style="overflow-y: auto">
