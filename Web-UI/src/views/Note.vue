@@ -68,7 +68,10 @@ textarea {
     font: inherit;
     outline: 0;
     border: 0;
-    margin: 1rem;
+    padding-left: 1rem;
+    padding-right: 1rem;
+    margin-top: 1rem;
+    margin-bottom: 1rem;
     resize: none;
 }
 </style>
