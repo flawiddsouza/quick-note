@@ -1,10 +1,11 @@
 <script setup>
-import { onBeforeMount, ref, watch } from 'vue'
+import { nextTick, ref, watch } from 'vue'
 import { useStore } from '../store'
 import Frame from '../components/Frame.vue'
 
 const store = useStore()
 const note = ref({ title: '', content: '' })
+const textarea = ref(null)
 
 const vFocus = {
     mounted(element) {
@@ -25,6 +26,11 @@ watch(store, () => {
     if(store.note) {
         note.value.title = store.note.title
         note.value.content = store.note.content
+        nextTick(() => {
+            setTimeout(() => {
+                textarea.value.scrollTop = textarea.value.scrollHeight
+            }, 100)
+        })
     }
 })
 </script>
@@ -38,7 +44,7 @@ watch(store, () => {
             <input type="text" v-model="note.title">
         </template>
         <template #app-content>
-            <textarea placeholder="Type here..." v-model="note.content" v-focus></textarea>
+            <textarea placeholder="Type here..." v-model="note.content" v-focus ref="textarea"></textarea>
         </template>
     </Frame>
 </template>
