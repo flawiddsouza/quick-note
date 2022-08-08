@@ -17,7 +17,9 @@ export const useStore = defineStore('store', {
             currentCategoryId: null,
             search: '',
             notes: [],
-            note: null
+            note: null,
+            noteCopy: { title: '', content: '' },
+            navigatedToNote: true
         }
     },
     getters: {
@@ -129,6 +131,14 @@ export const useStore = defineStore('store', {
             })
 
             saveAutoMergeDoc(updatedAutomergeDoc)
+        },
+        async goBack() {
+            if(this.note.id) {
+                await this.updateNote(this.note, this.noteCopy.title, this.noteCopy.content)
+            } else {
+                await this.addNote(this.noteCopy.title, this.noteCopy.content)
+            }
+            this.note = null
         }
     }
 })

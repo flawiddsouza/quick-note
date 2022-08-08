@@ -2,9 +2,10 @@
 import { nextTick, ref, watch } from 'vue'
 import { useStore } from '../store'
 import Frame from '../components/Frame.vue'
+import { storeToRefs } from 'pinia'
 
 const store = useStore()
-const note = ref({ title: '', content: '' })
+const { note } = storeToRefs(store)
 const textarea = ref(null)
 
 const vFocus = {
@@ -13,21 +14,15 @@ const vFocus = {
     }
 }
 
-async function goBack() {
-    if(store.note.id) {
-        await store.updateNote(store.note, note.value.title, note.value.content)
-    } else {
-        await store.addNote(note.value.title, note.value.content)
-    }
-    store.note = null
-}
-
-watch(store, () => {
+watch(note, () => {
     if(store.note) {
-        note.value.title = store.note.title
-        note.value.content = store.note.content
+        store.noteCopy.title = store.note.title
+        store.noteCopy.content = store.note.content
         nextTick(() => {
             setTimeout(() => {
+                if(!textarea) {
+                    return
+                }
                 textarea.value.scrollTop = textarea.value.scrollHeight
             }, 100)
         })
@@ -38,13 +33,13 @@ watch(store, () => {
 <template>
     <Frame v-if="store.note">
         <template #app-bar>
-            <button class="app-bar-action-button" title="Go Back" style="margin-right: 0.5rem; margin-left: -0.5rem;" @click="goBack">
+            <button class="app-bar-action-button" title="Go Back" style="margin-right: 0.5rem; margin-left: -0.5rem;" @click="store.goBack()">
                 <img src="/icons/ic_menu_back.png">
             </button>
-            <input type="text" spellcheck="false" v-model="note.title">
+            <input type="text" spellcheck="false" v-model="store.noteCopy.title">
         </template>
         <template #app-content>
-            <textarea placeholder="Type here..." spellcheck="false" v-model="note.content" v-focus ref="textarea"></textarea>
+            <textarea placeholder="Type here..." spellcheck="false" v-model="store.noteCopy.content" v-focus ref="textarea"></textarea>
         </template>
     </Frame>
 </template>

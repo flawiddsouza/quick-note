@@ -8,9 +8,12 @@ const store = useStore()
 
 store.loadDB()
 
-window.addEventListener('popstate', (e) => {
-    store.note = null
-    window.history.pushState({}, '', '/')
+window.addEventListener('popstate', async(event) => {
+    if(store.navigatedToNote) {
+        await store.goBack()
+        window.history.replaceState({}, '', '/')
+        store.navigatedToNote = false
+    }
 })
 </script>
 

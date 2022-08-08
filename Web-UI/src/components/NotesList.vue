@@ -15,6 +15,7 @@ function openNoteContextMenu(event, note) {
 function viewNote(note) {
     store.note = note
     window.history.pushState({}, '', '/note')
+    store.navigatedToNote = true
 }
 </script>
 

@@ -18,6 +18,12 @@ const vFocus = {
 function addCategory() {
     alert('Add Category Clicked')
 }
+
+function addNote() {
+    store.note = { title: '', content: '' }
+    window.history.pushState({}, '', '/note')
+    store.navigatedToNote = true
+}
 </script>
 
 <template>
@@ -67,7 +73,7 @@ function addCategory() {
             </div>
         </template>
         <template #app-action-area>
-            <div class="app-action-button" @click="store.note = { title: '', content: '' }">
+            <div class="app-action-button" @click="addNote">
                 <div class="app-action-button-inner">+</div>
             </div>
         </template>
