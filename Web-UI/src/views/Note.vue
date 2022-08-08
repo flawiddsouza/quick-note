@@ -33,7 +33,7 @@ watch(store, () => {
     <Frame v-if="store.note">
         <template #app-bar>
             <button class="app-bar-action-button" title="Go Back" style="margin-right: 0.5rem; margin-left: -0.5rem;" @click="goBack">
-                <img src="../../public/icons/ic_menu_back.png">
+                <img src="/icons/ic_menu_back.png">
             </button>
             <input type="text" v-model="note.title">
         </template>
