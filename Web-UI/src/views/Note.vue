@@ -41,10 +41,10 @@ watch(store, () => {
             <button class="app-bar-action-button" title="Go Back" style="margin-right: 0.5rem; margin-left: -0.5rem;" @click="goBack">
                 <img src="/icons/ic_menu_back.png">
             </button>
-            <input type="text" v-model="note.title">
+            <input type="text" spellcheck="false" v-model="note.title">
         </template>
         <template #app-content>
-            <textarea placeholder="Type here..." v-model="note.content" v-focus ref="textarea"></textarea>
+            <textarea placeholder="Type here..." spellcheck="false" v-model="note.content" v-focus ref="textarea"></textarea>
         </template>
     </Frame>
 </template>

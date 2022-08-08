@@ -30,7 +30,7 @@ function addCategory() {
                 <div class="app-bar-title" v-if="!search">
                     Quick Note
                 </div>
-                <input type="text" v-model="store.search" v-focus v-else>
+                <input type="text" spellcheck="false" v-model="store.search" v-focus v-else>
             </div>
             <div style="white-space: nowrap">
                 <button class="app-bar-action-button" title="Search" v-if="search === false" @click="search = true" >
