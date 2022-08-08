@@ -19,7 +19,7 @@ function viewNote(note) {
 
 <template>
     <div v-for="note in store.filteredNotes" class="item" @contextmenu.prevent="openNoteContextMenu($event, note)" @click="viewNote(note)">
-        <div>{{ note.title !== '' ? note.title : note.content }}</div>
+        <div class="item-primary">{{ note.title !== '' ? note.title : note.content }}</div>
         <div class="item-secondary" v-if="note.title !== '' & note.content !== ''">{{ note.content }}</div>
     </div>
     <div class="context-menu-overlay" v-show="showContextMenu" @click="showContextMenu = false"></div>
@@ -49,6 +49,12 @@ function viewNote(note) {
 .item:active {
     cursor: pointer;
     background-color: #0000000f;
+}
+
+.item-primary {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .item-secondary {
