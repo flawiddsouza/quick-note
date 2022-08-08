@@ -15,8 +15,6 @@ function openCategoryContextMenu(event, category) {
 function viewCategory(category) {
     store.category = category
 }
-
-store.loadCategories()
 </script>
 
 <template>

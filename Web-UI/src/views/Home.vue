@@ -67,7 +67,7 @@ function addCategory() {
             </div>
         </template>
         <template #app-action-area>
-            <div class="app-action-button" @click="store.note = { title: '', note: '' }">
+            <div class="app-action-button" @click="store.note = { title: '', content: '' }">
                 <div class="app-action-button-inner">+</div>
             </div>
         </template>

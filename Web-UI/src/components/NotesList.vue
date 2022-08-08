@@ -15,8 +15,6 @@ function openNoteContextMenu(event, note) {
 function viewNote(note) {
     store.note = note
 }
-
-store.loadNotes()
 </script>
 
 <template>

@@ -9,6 +9,9 @@
         "preview": "vite preview"
     },
     "dependencies": {
+        "automerge": "^1.0.1-preview.7",
+        "dexie": "^3.2.2",
+        "nanoid": "^4.0.0",
         "pinia": "^2.0.17",
         "vue": "^3.2.37"
     },
