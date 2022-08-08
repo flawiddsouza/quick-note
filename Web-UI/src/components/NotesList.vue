@@ -61,7 +61,7 @@ function viewNote(note) {
 .item-secondary {
     margin-top: 0.3rem;
     color: #676767;
-    max-height: 2.4rem;
+    max-height: 2.7rem;
     overflow: hidden;
 }
 
