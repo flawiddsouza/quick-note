@@ -1,0 +1,18 @@
+category
+    add
+
+category context menu
+    rename
+    delete
+
+note context menu
+    details
+    share
+    copy
+    delete
+
+settings
+    privacy mode
+    sign in
+
+sync
