@@ -14,6 +14,7 @@ function openNoteContextMenu(event, note) {
 
 function viewNote(note) {
     store.note = note
+    window.history.pushState({}, '', '/note')
 }
 </script>
 

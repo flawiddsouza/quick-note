@@ -7,6 +7,11 @@ import ReloadPrompt from './components/ReloadPrompt.vue'
 const store = useStore()
 
 store.loadDB()
+
+window.addEventListener('popstate', (e) => {
+    store.note = null
+    window.history.pushState({}, '', '/')
+})
 </script>
 
 <template>
