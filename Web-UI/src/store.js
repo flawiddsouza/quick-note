@@ -24,13 +24,17 @@ export const useStore = defineStore('store', {
         filteredNotes() {
             const searchString = this.search.toLowerCase()
 
+            let notes = []
+
             if(searchString === '') {
-                return this.notes.sort((a, b) => b.modified.localeCompare(a.modified))
+                notes = this.notes
+            } else {
+                notes = this.notes.filter(note => {
+                    return note.title.toLowerCase().includes(searchString) || note.content.toLowerCase().includes(searchString)
+                })
             }
 
-            return this.notes.filter(note => {
-                return note.title.toLowerCase().includes(searchString) || note.content.toLowerCase().includes(searchString).sort((a, b) => b.modified.localeCompare(a.modified))
-            })
+            return notes.sort((a, b) => b.modified.localeCompare(a.modified))
         }
     },
     actions: {
