@@ -25,7 +25,7 @@ function addCategory() {
         <template #app-bar>
             <div style="display: flex; align-items: center; width: 100%">
                 <button class="app-bar-action-button" title="Go Back" style="margin-right: 0.5rem; margin-left: -0.5rem;" @click="drawerOpen = !drawerOpen">
-                    <img src="icons/menu_white_24dp.svg">
+                    <img src="../../public/icons/menu_white_24dp.svg">
                 </button>
                 <div class="app-bar-title" v-if="!search">
                     Quick Note
@@ -34,13 +34,13 @@ function addCategory() {
             </div>
             <div style="white-space: nowrap">
                 <button class="app-bar-action-button" title="Search" v-if="search === false" @click="search = true" >
-                    <img src="icons/ic_menu_search.png">
+                    <img src="../../public/icons/ic_menu_search.png">
                 </button>
                 <button class="app-bar-action-button" title="Search" style="margin-left: 1rem" v-else @click="search = false; store.search = ''">
-                    <img src="icons/ic_menu_close_clear_cancel.png">
+                    <img src="../../public/icons/ic_menu_close_clear_cancel.png">
                 </button>
                 <button class="app-bar-action-button" title="Settings" style="margin-left: 1rem">
-                    <img src="icons/ic_menu_preferences.png" >
+                    <img src="../../public/icons/ic_menu_preferences.png" >
                 </button>
             </div>
         </template>
