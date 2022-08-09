@@ -19,19 +19,18 @@ export const useStore = defineStore('store', {
             notes: [],
             note: null,
             noteCopy: { title: '', content: '' },
-            navigatedToNote: true
+            navigatedToNote: true,
+            drawerOpen: false
         }
     },
     getters: {
         filteredNotes() {
             const searchString = this.search.toLowerCase()
 
-            let notes = []
+            let notes = this.notes.filter(note => note.categoryId === this.currentCategoryId)
 
-            if(searchString === '') {
-                notes = this.notes
-            } else {
-                notes = this.notes.filter(note => {
+            if(searchString !== '') {
+                notes = notes.filter(note => {
                     return note.title.toLowerCase().includes(searchString) || note.content.toLowerCase().includes(searchString)
                 })
             }

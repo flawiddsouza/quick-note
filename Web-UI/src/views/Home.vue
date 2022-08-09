@@ -4,10 +4,12 @@ import { useStore } from '../store'
 import Frame from '../components/Frame.vue'
 import NotesList from '../components/NotesList.vue'
 import CategoryList from '../components/CategoryList.vue'
+import Modal from '../components/Modal.vue'
 
 const store = useStore()
-const drawerOpen = ref(false)
 const search = ref(false)
+const showAddCategoryModal = ref(false)
+const newCategoryName = ref('')
 
 const vFocus = {
     mounted(element) {
@@ -15,8 +17,14 @@ const vFocus = {
     }
 }
 
+function startAddCategory() {
+    newCategoryName.value = ''
+    showAddCategoryModal.value = true
+}
+
 function addCategory() {
-    alert('Add Category Clicked')
+    store.addCategory(newCategoryName.value)
+    showAddCategoryModal.value = false
 }
 
 function addNote() {
@@ -30,7 +38,7 @@ function addNote() {
     <Frame v-show="store.note === null">
         <template #app-bar>
             <div style="display: flex; align-items: center; width: 100%">
-                <button class="app-bar-action-button" title="Go Back" style="margin-right: 0.5rem; margin-left: -0.5rem;" @click="drawerOpen = !drawerOpen">
+                <button class="app-bar-action-button" title="Go Back" style="margin-right: 0.5rem; margin-left: -0.5rem;" @click="store.drawerOpen = !store.drawerOpen">
                     <img src="/icons/menu_white_24dp.svg">
                 </button>
                 <div class="app-bar-title" v-if="!search">
@@ -52,16 +60,16 @@ function addNote() {
         </template>
         <template #app-content>
             <transition name="fade">
-                <div class="drawer-overlay" v-if="drawerOpen" @click="drawerOpen = false"></div>
+                <div class="drawer-overlay" v-if="store.drawerOpen" @click="store.drawerOpen = false"></div>
             </transition>
             <transition name="slide">
-                <div class="drawer" v-if="drawerOpen">
+                <div class="drawer" v-if="store.drawerOpen">
                     <div style="position: relative; height: 100%;">
                         <div style="position: absolute; width: 100%; height: 100%; overflow-y: auto;">
                             <CategoryList />
                         </div>
                         <div style="position: absolute; bottom: 1rem; right: 1rem;">
-                            <div class="app-action-button" @click="addCategory">
+                            <div class="app-action-button" @click="startAddCategory">
                                 <div class="app-action-button-inner">+</div>
                             </div>
                         </div>
@@ -78,6 +86,18 @@ function addNote() {
             </div>
         </template>
     </Frame>
+    <Modal v-if="showAddCategoryModal" @close="showAddCategoryModal = false" style="padding: 1rem">
+        <form @submit.prevent="addCategory">
+            <label>
+                <div style="font-weight: 500; margin-bottom: 0.5rem;">Enter Category Name</div>
+                <input type="text" v-model="newCategoryName" required v-focus>
+            </label>
+            <div style="text-align: right; margin-top: 1rem;">
+                <button type="button" @click="showAddCategoryModal = false">CANCEL</button>
+                <button style="margin-left: 1rem">ADD</button>
+            </div>
+        </form>
+    </Modal>
 </template>
 
 <style scoped>

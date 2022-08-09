@@ -14,7 +14,8 @@ function openCategoryContextMenu(event, category) {
 }
 
 function viewCategory(category) {
-    store.category = category
+    store.currentCategoryId = category.id
+    store.drawerOpen = false
 }
 </script>
 

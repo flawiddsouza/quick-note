@@ -1,5 +1,19 @@
+<script setup>
+const emit = defineEmits(['close'])
+
+function closeModalOnBackgroundClick(e) {
+    // document.body.contains(e.target) is needed when the clicked element is no longer in the DOM
+    // if you don't add it, the orphaned e.target element will close the modal, as its "closest" will
+    // not yield the .modal class element or any other elements for that matter
+    // because it has been removed by the user
+    if(e.target.closest('.modal') === null && document.body.contains(e.target)) {
+        emit('close')
+    }
+}
+</script>
+
 <template>
-    <div class="modal-container" @click="$emit('close')">
+    <div class="modal-container" @click="closeModalOnBackgroundClick">
         <div class="modal">
             <slot></slot>
         </div>
@@ -8,7 +22,7 @@
 
 <style scoped>
 .modal-container {
-    z-index: 2;
+    z-index: 3;
     position: fixed;
     top: 0;
     height: 100%;
@@ -20,7 +34,7 @@
 
 .modal {
     background-color: white;
-    padding: 1rem;
+    padding: 1.2rem 1.5rem;
     font-size: var(--secondary-font-size);
 }
 
@@ -32,5 +46,20 @@
 .fade-enter-from,
 .fade-leave-to {
     opacity: 0;
+}
+
+:slotted(input) {
+    border-bottom: 2px solid #e91e63 !important;
+    color: black !important;
+}
+
+:slotted(button) {
+    font: inherit;
+    font-size: 0.9em;
+    font-weight: 500;
+    background-color: transparent;
+    border: 0;
+    color: #e91e63;
+    cursor: pointer;
 }
 </style>
