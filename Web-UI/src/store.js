@@ -2,12 +2,40 @@ import { defineStore } from 'pinia'
 import { getItem, setItem } from './db'
 import * as Automerge from 'automerge'
 import { nanoid } from 'nanoid'
+import PersistentWebSocket from 'pws'
 
 let automergeDoc = null
 
 function saveAutoMergeDoc(updatedAutomergeDoc) {
     automergeDoc = updatedAutomergeDoc
     setItem('automergeDoc', Automerge.save(updatedAutomergeDoc))
+}
+
+async function getToken(email, password) {
+    let response
+
+    try {
+        response = await fetch(`${import.meta.env._API_URL}/login`, {
+            method: 'POST',
+            body: JSON.stringify({
+                email,
+                password
+            }),
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+    } catch(e) {
+        throw new Error('Unable to reach server')
+    }
+
+    if(response.status === 400) {
+        throw new Error(await response.text())
+    }
+
+    const responseData = await response.json()
+
+    return responseData.token
 }
 
 export const useStore = defineStore('store', {
@@ -72,6 +100,26 @@ export const useStore = defineStore('store', {
 
             // to avoid unncessary db write when settings are loaded from the db for the first time
             this.skipSettingsUpdate = false
+
+            if(this.settings.email !== '') {
+                this.token = await getToken(this.settings.email, this.settings.password)
+            }
+        },
+        // called whenever store.token changes, watch handler in App.vue
+        async connectToWebSocket() {
+            const ws = new PersistentWebSocket(`${import.meta.env._WEBSOCKET_URL}?token=${this.token}`)
+
+            ws.onopen = () => {
+                console.log('connected to websocket')
+            }
+
+            ws.onmessage = event => {
+                console.log('receive websocket message', event.data)
+            }
+
+            ws.onclose = () => {
+                console.log('websocket closed')
+            }
         },
         async addCategory(name) {
             const category = {
