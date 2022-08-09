@@ -127,7 +127,11 @@ export const useStore = defineStore('store', {
             this.notes.splice(index, 1)
 
             const updatedAutomergeDoc = Automerge.change(automergeDoc, automergeDocChange => {
-                automergeDocChange.notes.splice(index, 1)
+                // looks like item order is not guaranteed inside an automerge array, so can't use
+                // the above found index to remove item as that will remove the incorrect item
+                // so have to find index again
+                const index2 = automergeDocChange.notes.findIndex(note => note.id === id)
+                automergeDocChange.notes.splice(index2, 1)
             })
 
             saveAutoMergeDoc(updatedAutomergeDoc)

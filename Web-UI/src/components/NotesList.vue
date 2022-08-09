@@ -5,10 +5,12 @@ import { useStore } from '../store'
 const store = useStore()
 const contextMenuPosition = ref({ x: '-9999px', y: 0 })
 const showContextMenu = ref(false)
+const contextMenuNote = ref(null)
 
 function openNoteContextMenu(event, note) {
     contextMenuPosition.value.x = event.pageX + 'px'
     contextMenuPosition.value.y = event.pageY + 'px'
+    contextMenuNote.value = note
     showContextMenu.value = true
 }
 
@@ -16,6 +18,48 @@ function viewNote(note) {
     store.note = note
     window.history.pushState({}, '', '/note')
     store.navigatedToNote = true
+}
+
+const contextMenu = {
+    details() {
+
+    },
+    copy() {
+        let noteToCopy = ''
+
+        if(contextMenuNote.value.title !== '' && contextMenuNote.value.content !== '') {
+            noteToCopy = contextMenuNote.value.title + '\n' + contextMenuNote.value.content
+        }
+
+        if(contextMenuNote.value.title !== '' && contextMenuNote.value.content === '') {
+            noteToCopy = contextMenuNote.value.title
+        }
+
+        if(contextMenuNote.value.title === '' && contextMenuNote.value.content !== '') {
+            noteToCopy = contextMenuNote.value.content
+        }
+
+        navigator.clipboard.writeText(noteToCopy)
+
+        showContextMenu.value = false
+    },
+    share() {
+        navigator.share({
+            title: contextMenuNote.value.title,
+            text: contextMenuNote.value.content
+        })
+
+        showContextMenu.value = false
+    },
+    delete() {
+        if(!confirm('Do you really want to delete this?')) {
+            return
+        }
+
+        store.deleteNote(contextMenuNote.value.id)
+
+        showContextMenu.value = false
+    }
 }
 </script>
 
@@ -26,10 +70,10 @@ function viewNote(note) {
     </div>
     <div class="context-menu-overlay" v-show="showContextMenu" @click="showContextMenu = false"></div>
     <div class="context-menu" :style="{ left: contextMenuPosition.x, top: contextMenuPosition.y }" v-show="showContextMenu">
-        <div>Details</div>
-        <div>Copy</div>
-        <div>Share</div>
-        <div>Delete</div>
+        <div @click="contextMenu.details">Details</div>
+        <div @click="contextMenu.copy">Copy</div>
+        <div @click="contextMenu.share">Share</div>
+        <div @click="contextMenu.delete">Delete</div>
     </div>
 </template>
 
