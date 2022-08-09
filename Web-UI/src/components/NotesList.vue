@@ -58,6 +58,7 @@ const contextMenu = {
     },
     delete() {
         if(!confirm('Do you really want to delete this?')) {
+            showContextMenu.value = false
             return
         }
 
