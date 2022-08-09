@@ -17,8 +17,11 @@ const registrationForm = ref({
     confirmPassword: ''
 })
 const formError = ref('')
+const formProcessing = ref(false)
 
 async function login() {
+    formProcessing.value = true
+
     formError.value = null
 
     let response
@@ -33,11 +36,13 @@ async function login() {
         })
     } catch(e) {
         formError.value = 'Unable to reach server'
+        formProcessing.value = false
         return
     }
 
     if(response.status === 400) {
         formError.value = await response.text()
+        formProcessing.value = false
         return
     }
 
@@ -50,13 +55,18 @@ async function login() {
 
     loginForm.value.email = ''
     loginForm.value.password = ''
+
+    formProcessing.value = false
 }
 
 async function register() {
+    formProcessing.value = true
+
     formError.value = null
 
     if(registrationForm.value.password !== registrationForm.value.confirmPassword) {
         formError.value = 'Password and Confirm Password do not match'
+        formProcessing.value = false
         return
     }
 
@@ -72,11 +82,13 @@ async function register() {
         })
     } catch(e) {
         formError.value = 'Unable to reach server'
+        formProcessing.value = false
         return
     }
 
     if(response.status === 400) {
         formError.value = await response.text()
+        formProcessing.value = false
         return
     }
 
@@ -90,6 +102,8 @@ async function register() {
     registrationForm.value.email = ''
     registrationForm.value.password = ''
     registrationForm.value.confirmPassword = ''
+
+    formProcessing.value = false
 }
 
 function changePassword() {
@@ -159,17 +173,18 @@ watch(settings, () => {
                                             <div>
                                                 <label>
                                                     Email<br>
-                                                    <input type="text" required v-model="loginForm.email">
+                                                    <input type="text" required v-model="loginForm.email" :disabled="formProcessing">
                                                 </label>
                                             </div>
                                             <div style="margin-top: 1rem">
                                                 <label>
                                                     Password<br>
-                                                    <input type="password" required v-model="loginForm.password">
+                                                    <input type="password" required v-model="loginForm.password" :disabled="formProcessing">
                                                 </label>
                                             </div>
                                             <div style="margin-top: 1rem; text-align: right;">
-                                                <button>Login</button>
+                                                <button v-if="!formProcessing">Login</button>
+                                                <button disabled v-else>Logging in...</button>
                                             </div>
                                             <div style="margin-top: 1rem; color: red; text-align: center;" v-if="formError">
                                                 Error: {{ formError }}
@@ -179,23 +194,24 @@ watch(settings, () => {
                                             <div>
                                                 <label>
                                                     Email<br>
-                                                    <input type="text" required v-model="registrationForm.email">
+                                                    <input type="text" required v-model="registrationForm.email" :disabled="formProcessing">
                                                 </label>
                                             </div>
                                             <div style="margin-top: 1rem">
                                                 <label>
                                                     Password<br>
-                                                    <input type="password" required v-model="registrationForm.password">
+                                                    <input type="password" required v-model="registrationForm.password" :disabled="formProcessing">
                                                 </label>
                                             </div>
                                             <div style="margin-top: 1rem">
                                                 <label>
                                                     Confirm Password<br>
-                                                    <input type="password" required v-model="registrationForm.confirmPassword">
+                                                    <input type="password" required v-model="registrationForm.confirmPassword" :disabled="formProcessing">
                                                 </label>
                                             </div>
                                             <div style="margin-top: 1rem; text-align: right;">
-                                                <button>Register</button>
+                                                <button v-if="!formProcessing">Register</button>
+                                                <button disabled v-else>Registration in progress...</button>
                                             </div>
                                             <div style="margin-top: 1rem; color: red; text-align: center;" v-if="formError">
                                                 Error: {{ formError }}
