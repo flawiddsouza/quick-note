@@ -59,7 +59,15 @@ const vFocus = {
 </script>
 
 <template>
-    <div v-for="category in store.categories" class="item" @contextmenu.prevent="openCategoryContextMenu($event, category)" @click="viewCategory(category)">{{ category.name }}</div>
+    <div
+        v-for="category in store.categories"
+        class="item"
+        :style="{ borderLeft: store.currentCategoryId === category.id ? '4px solid #ff4181' : '4px solid transparent' }"
+        @contextmenu.prevent="openCategoryContextMenu($event, category)"
+        @click="viewCategory(category)"
+    >
+        {{ category.name }}
+    </div>
     <ContextMenu v-if="showContextMenu" @close="showContextMenu = false" :left="contextMenuPosition.x" :top="contextMenuPosition.y">
         <div @click="contextMenu.rename">Rename</div>
         <div @click="contextMenu.delete">Delete</div>
