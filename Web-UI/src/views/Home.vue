@@ -90,7 +90,7 @@ function addNote() {
         <form @submit.prevent="addCategory">
             <label>
                 <div style="font-weight: 500; margin-bottom: 0.5rem;">Enter Category Name</div>
-                <input type="text" v-model="newCategoryName" required v-focus>
+                <input type="text" spellcheck="false" v-model="newCategoryName" required v-focus>
             </label>
             <div style="text-align: right; margin-top: 1rem;">
                 <button type="button" @click="showAddCategoryModal = false">CANCEL</button>

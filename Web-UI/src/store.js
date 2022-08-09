@@ -74,6 +74,45 @@ export const useStore = defineStore('store', {
 
             saveAutoMergeDoc(updatedAutomergeDoc)
         },
+        async updateCategory(existingCategory, name) {
+            if(existingCategory.name !== name) {
+                existingCategory.name = name
+                existingCategory.modified = new Date().toISOString()
+
+                const updatedAutomergeDoc = Automerge.change(automergeDoc, automergeDocChange => {
+                    const categoryToUpdateInAutomerge = automergeDocChange.categories.find(category => category.id === existingCategory.id)
+                    categoryToUpdateInAutomerge.name = existingCategory.name
+                    categoryToUpdateInAutomerge.modified = existingCategory.modified
+                })
+
+                saveAutoMergeDoc(updatedAutomergeDoc)
+            }
+        },
+        async deleteCategory(id) {
+            // switch current category to Main if the category being deleted is the active one
+            if(this.currentCategoryId === id) {
+                this.currentCategoryId = null
+            }
+
+            // delete all notes matching category before deleting category
+            for(const note of this.notes.filter(note => note.categoryId === id)) {
+                await this.deleteNote(note.id)
+            }
+
+            const index = this.categories.findIndex(category => category.id === id)
+
+            this.categories.splice(index, 1)
+
+            const updatedAutomergeDoc = Automerge.change(automergeDoc, automergeDocChange => {
+                // looks like item order is not guaranteed inside an automerge array, so can't use
+                // the above found index to remove item as that will remove the incorrect item
+                // so have to find index again
+                const index2 = automergeDocChange.categories.findIndex(category => category.id === id)
+                automergeDocChange.categories.splice(index2, 1)
+            })
+
+            saveAutoMergeDoc(updatedAutomergeDoc)
+        },
         async addNote(title, content) {
             if(title === '' && content === '') {
                 return

@@ -49,6 +49,11 @@ function closeModalOnBackgroundClick(e) {
 }
 
 :slotted(input) {
+    font: inherit;
+    background-color: transparent;
+    outline: 0;
+    border: 0;
+    width: 100%;
     border-bottom: 2px solid #e91e63 !important;
     color: black !important;
 }
