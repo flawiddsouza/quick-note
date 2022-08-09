@@ -14,6 +14,10 @@ const vFocus = {
     }
 }
 
+function goBack() {
+    history.back()
+}
+
 watch(note, () => {
     if(store.note) {
         store.noteCopy.title = store.note.title
@@ -33,7 +37,7 @@ watch(note, () => {
 <template>
     <Frame v-if="store.note">
         <template #app-bar>
-            <button class="app-bar-action-button" title="Go Back" style="margin-right: 0.5rem; margin-left: -0.5rem;" @click="store.goBack()">
+            <button class="app-bar-action-button" title="Go Back" style="margin-right: 0.5rem; margin-left: -0.5rem;" @click="goBack()">
                 <img src="/icons/ic_menu_back.png">
             </button>
             <input type="text" spellcheck="false" v-model="store.noteCopy.title">
