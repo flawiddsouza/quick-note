@@ -19,8 +19,15 @@ export const useStore = defineStore('store', {
             notes: [],
             note: null,
             noteCopy: { title: '', content: '' },
-            navigatedToNote: true,
-            drawerOpen: false
+            drawerOpen: false,
+            currentView: 'Home',
+            settings: {
+                privacyModeEnabled: false,
+                privacyModePercent: 50,
+                email: '',
+                password: ''
+            },
+            skipSettingsUpdate: true
         }
     },
     getters: {
@@ -41,6 +48,13 @@ export const useStore = defineStore('store', {
     actions: {
         // should be run only once when the app is first loaded
         async loadDB() {
+            this.settings = await getItem('settings') ?? {
+                privacyModeEnabled: false,
+                privacyModePercent: 50,
+                username: '',
+                password: ''
+            }
+
             automergeDoc = Automerge.init()
 
             const savedAutomergeDoc = await getItem('automergeDoc')
@@ -54,6 +68,9 @@ export const useStore = defineStore('store', {
             this.categories.unshift({ id: null, name: 'Main' })
 
             this.notes = automergeDoc.notes ? JSON.parse(JSON.stringify(automergeDoc.notes)) : []
+
+            // to avoid unncessary db write when settings are loaded from the db for the first time
+            this.skipSettingsUpdate = false
         },
         async addCategory(name) {
             const category = {
@@ -181,6 +198,9 @@ export const useStore = defineStore('store', {
                 await this.addNote(this.noteCopy.title, this.noteCopy.content)
             }
             this.note = null
+        },
+        async saveSettings() {
+            await setItem('settings', JSON.parse(JSON.stringify(this.settings)))
         }
     }
 })

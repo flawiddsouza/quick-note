@@ -21,7 +21,7 @@ function openNoteContextMenu(event, note) {
 function viewNote(note) {
     store.note = note
     window.history.pushState({}, '', '/note')
-    store.navigatedToNote = true
+    store.currentView = 'Note'
 }
 
 const contextMenu = {
@@ -91,7 +91,7 @@ const contextMenu = {
 <style scoped>
 .item {
     padding: 0.7rem 1rem;
-    border-bottom: 1px solid lightgrey;
+    border-bottom: 1px solid var(--primary-border-color);
     user-select: none;
 }
 

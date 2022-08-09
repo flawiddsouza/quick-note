@@ -30,74 +30,81 @@ function addCategory() {
 function addNote() {
     store.note = { title: '', content: '' }
     window.history.pushState({}, '', '/note')
-    store.navigatedToNote = true
+    store.currentView = 'Note'
+}
+
+function openSettings() {
+    window.history.pushState({}, '', '/settings')
+    store.currentView = 'Settings'
 }
 </script>
 
 <template>
-    <Frame v-show="store.note === null">
-        <template #app-bar>
-            <div style="display: flex; align-items: center; width: 100%">
-                <button class="app-bar-action-button" title="Go Back" style="margin-right: 0.5rem; margin-left: -0.5rem;" @click="store.drawerOpen = !store.drawerOpen">
-                    <img src="/icons/menu_white_24dp.svg">
-                </button>
-                <div class="app-bar-title" v-if="!search">
-                    Quick Note
+    <div style="height: 100%">
+        <Frame>
+            <template #app-bar>
+                <div style="display: flex; align-items: center; width: 100%">
+                    <button class="app-bar-action-button" title="Go Back" style="margin-right: 0.5rem; margin-left: -0.5rem;" @click="store.drawerOpen = !store.drawerOpen">
+                        <img src="/icons/menu_white_24dp.svg">
+                    </button>
+                    <div class="app-bar-title" v-if="!search">
+                        Quick Note
+                    </div>
+                    <input type="text" spellcheck="false" v-model="store.search" v-focus v-else>
                 </div>
-                <input type="text" spellcheck="false" v-model="store.search" v-focus v-else>
-            </div>
-            <div style="white-space: nowrap">
-                <button class="app-bar-action-button" title="Search" v-if="search === false" @click="search = true" >
-                    <img src="/icons/ic_menu_search.png">
-                </button>
-                <button class="app-bar-action-button" title="Search" style="margin-left: 1rem" v-else @click="search = false; store.search = ''">
-                    <img src="/icons/ic_menu_close_clear_cancel.png">
-                </button>
-                <button class="app-bar-action-button" title="Settings" style="margin-left: 1rem">
-                    <img src="/icons/ic_menu_preferences.png" >
-                </button>
-            </div>
-        </template>
-        <template #app-content>
-            <transition name="fade">
-                <div class="drawer-overlay" v-if="store.drawerOpen" @click="store.drawerOpen = false"></div>
-            </transition>
-            <transition name="slide">
-                <div class="drawer" v-if="store.drawerOpen">
-                    <div style="position: relative; height: 100%;">
-                        <div style="position: absolute; width: 100%; height: 100%; overflow-y: auto;">
-                            <CategoryList />
-                        </div>
-                        <div style="position: absolute; bottom: 1rem; right: 1rem;">
-                            <div class="app-action-button" @click="startAddCategory">
-                                <div class="app-action-button-inner">+</div>
+                <div style="white-space: nowrap">
+                    <button class="app-bar-action-button" title="Search" v-if="search === false" @click="search = true" >
+                        <img src="/icons/ic_menu_search.png">
+                    </button>
+                    <button class="app-bar-action-button" title="Search" style="margin-left: 1rem" v-else @click="search = false; store.search = ''">
+                        <img src="/icons/ic_menu_close_clear_cancel.png">
+                    </button>
+                    <button class="app-bar-action-button" title="Settings" style="margin-left: 1rem" @click="openSettings">
+                        <img src="/icons/ic_menu_preferences.png" >
+                    </button>
+                </div>
+            </template>
+            <template #app-content>
+                <transition name="fade">
+                    <div class="drawer-overlay" v-if="store.drawerOpen" @click="store.drawerOpen = false"></div>
+                </transition>
+                <transition name="slide">
+                    <div class="drawer" v-if="store.drawerOpen">
+                        <div style="position: relative; height: 100%;">
+                            <div style="position: absolute; width: 100%; height: 100%; overflow-y: auto;">
+                                <CategoryList />
+                            </div>
+                            <div style="position: absolute; bottom: 1rem; right: 1rem;">
+                                <div class="app-action-button" @click="startAddCategory">
+                                    <div class="app-action-button-inner">+</div>
+                                </div>
                             </div>
                         </div>
                     </div>
+                </transition>
+                <div style="overflow-y: auto">
+                    <NotesList />
                 </div>
-            </transition>
-            <div style="overflow-y: auto">
-                <NotesList />
-            </div>
-        </template>
-        <template #app-action-area>
-            <div class="app-action-button" @click="addNote">
-                <div class="app-action-button-inner">+</div>
-            </div>
-        </template>
-    </Frame>
-    <Modal v-if="showAddCategoryModal" @close="showAddCategoryModal = false" style="padding: 1rem">
-        <form @submit.prevent="addCategory">
-            <label>
-                <div style="font-weight: 500; margin-bottom: 0.5rem;">Enter Category Name</div>
-                <input type="text" spellcheck="false" v-model="newCategoryName" required v-focus>
-            </label>
-            <div style="text-align: right; margin-top: 1rem;">
-                <button type="button" @click="showAddCategoryModal = false">CANCEL</button>
-                <button style="margin-left: 1rem">ADD</button>
-            </div>
-        </form>
-    </Modal>
+            </template>
+            <template #app-action-area>
+                <div class="app-action-button" @click="addNote">
+                    <div class="app-action-button-inner">+</div>
+                </div>
+            </template>
+        </Frame>
+        <Modal v-if="showAddCategoryModal" @close="showAddCategoryModal = false" style="padding: 1rem">
+            <form @submit.prevent="addCategory">
+                <label>
+                    <div style="font-weight: 500; margin-bottom: 0.5rem;">Enter Category Name</div>
+                    <input type="text" spellcheck="false" v-model="newCategoryName" required v-focus>
+                </label>
+                <div style="text-align: right; margin-top: 1rem;">
+                    <button type="button" @click="showAddCategoryModal = false">CANCEL</button>
+                    <button style="margin-left: 1rem">ADD</button>
+                </div>
+            </form>
+        </Modal>
+    </div>
 </template>
 
 <style scoped>
@@ -159,7 +166,7 @@ function addNote() {
     height: 100%;
     min-width: 15rem;
     background-color: white;
-    border-right: 1px solid lightgrey;
+    border-right: 1px solid var(--primary-border-color);
     overflow-y: auto;
     white-space: nowrap;
 }
