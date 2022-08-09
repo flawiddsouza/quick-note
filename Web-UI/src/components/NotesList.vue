@@ -1,11 +1,14 @@
 <script setup>
 import { ref } from 'vue'
 import { useStore } from '../store'
+import Modal from './Modal.vue'
+import dayjs from 'dayjs'
 
 const store = useStore()
 const contextMenuPosition = ref({ x: '-9999px', y: 0 })
 const showContextMenu = ref(false)
 const contextMenuNote = ref(null)
+const showDetailsModal = ref(false)
 
 function openNoteContextMenu(event, note) {
     contextMenuPosition.value.x = event.pageX + 'px'
@@ -22,7 +25,8 @@ function viewNote(note) {
 
 const contextMenu = {
     details() {
-
+        showDetailsModal.value = true
+        showContextMenu.value = false
     },
     copy() {
         let noteToCopy = ''
@@ -75,6 +79,12 @@ const contextMenu = {
         <div @click="contextMenu.share">Share</div>
         <div @click="contextMenu.delete">Delete</div>
     </div>
+    <transition name="fade">
+        <Modal v-if="showDetailsModal" @close="showDetailsModal = false">
+            <div>Created on: {{ dayjs(contextMenuNote.created).format('DD-MMM-YY hh:mm A') }}</div>
+            <div>Updated on: {{ dayjs(contextMenuNote.modified).format('DD-MMM-YY hh:mm A') }}</div>
+        </Modal>
+    </transition>
 </template>
 
 <style scoped>
