@@ -16,13 +16,94 @@ const registrationForm = ref({
     password: '',
     confirmPassword: ''
 })
+const formError = ref('')
 
-function login() {
+async function login() {
+    formError.value = null
 
+    let response
+
+    try {
+        response = await fetch(`${import.meta.env._API_URL}/login`, {
+            method: 'POST',
+            body: JSON.stringify(loginForm.value),
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+    } catch(e) {
+        formError.value = 'Unable to reach server'
+        return
+    }
+
+    if(response.status === 400) {
+        formError.value = await response.text()
+        return
+    }
+
+    const responseData = await response.json()
+
+    settings.value.email = loginForm.value.email
+    settings.value.password = loginForm.value.password
+
+    store.token = responseData.token
+
+    loginForm.value.email = ''
+    loginForm.value.password = ''
 }
 
-function register() {
+async function register() {
+    formError.value = null
 
+    if(registrationForm.value.password !== registrationForm.value.confirmPassword) {
+        formError.value = 'Password and Confirm Password do not match'
+        return
+    }
+
+    let response
+
+    try {
+        response = await fetch(`${import.meta.env._API_URL}/register`, {
+            method: 'POST',
+            body: JSON.stringify(registrationForm.value),
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+    } catch(e) {
+        formError.value = 'Unable to reach server'
+        return
+    }
+
+    if(response.status === 400) {
+        formError.value = await response.text()
+        return
+    }
+
+    const responseData = await response.json()
+
+    settings.value.email = registrationForm.value.email
+    settings.value.password = registrationForm.value.password
+
+    store.token = responseData.token
+
+    registrationForm.value.email = ''
+    registrationForm.value.password = ''
+    registrationForm.value.confirmPassword = ''
+}
+
+function changePassword() {
+    alert('Not Implemented')
+}
+
+function logout() {
+    if(!confirm('Your notes will no longer be backed up once you log out but you\'ll still be able to access them on this device. Are you sure you want to proceed?')) {
+        return
+    }
+
+    settings.value.email = ''
+    settings.value.password = ''
+    store.token = null
 }
 
 function goBack() {
@@ -51,7 +132,7 @@ watch(settings, () => {
             <div>
                 <div style="padding: 1rem;">
                     <div style="font-weight: 500">Privacy Mode</div>
-                    <div style="margin-top: 1rem; font-size: var(--secondary-font-size); padding: 1rem;" class="tabs-container">
+                    <div style="margin-top: 1rem; font-size: var(--secondary-font-size); padding: 1.5rem; width: 15rem;" class="tabs-container">
                         <label>
                             <input type="checkbox" v-model="settings.privacyModeEnabled"> Enable Privacy Mode
                         </label>
@@ -68,51 +149,66 @@ watch(settings, () => {
                         <div style="margin-top: 1rem;">This account will be used to save and sync notes between devices and can be used to get back your notes in case of data loss.</div>
                         <div style="margin-top: 1rem">
                             <div class="tabs-container">
-                                <div class="tabs">
+                                <div class="tabs" v-if="settings.email === ''">
                                     <div :class="{ 'active': accountView === 'Login' }" @click="accountView = 'Login'">Login</div>
                                     <div :class="{ 'active': accountView === 'Register' }" @click="accountView = 'Register'">Register</div>
                                 </div>
-                                <div style="padding: 1.5rem">
-                                    <form @submit.prevent v-show="accountView === 'Login'">
-                                        <div>
-                                            <label>
-                                                Email<br>
-                                                <input type="text" required v-model="loginForm.email">
-                                            </label>
-                                        </div>
+                                <div style="padding: 1.5rem; width: 15rem;">
+                                    <template v-if="settings.email === ''">
+                                        <form @submit.prevent="login" v-show="accountView === 'Login'">
+                                            <div>
+                                                <label>
+                                                    Email<br>
+                                                    <input type="text" required v-model="loginForm.email">
+                                                </label>
+                                            </div>
+                                            <div style="margin-top: 1rem">
+                                                <label>
+                                                    Password<br>
+                                                    <input type="password" required v-model="loginForm.password">
+                                                </label>
+                                            </div>
+                                            <div style="margin-top: 1rem; text-align: right;">
+                                                <button>Login</button>
+                                            </div>
+                                            <div style="margin-top: 1rem; color: red; text-align: center;" v-if="formError">
+                                                Error: {{ formError }}
+                                            </div>
+                                        </form>
+                                        <form @submit.prevent="register" v-show="accountView === 'Register'">
+                                            <div>
+                                                <label>
+                                                    Email<br>
+                                                    <input type="text" required v-model="registrationForm.email">
+                                                </label>
+                                            </div>
+                                            <div style="margin-top: 1rem">
+                                                <label>
+                                                    Password<br>
+                                                    <input type="password" required v-model="registrationForm.password">
+                                                </label>
+                                            </div>
+                                            <div style="margin-top: 1rem">
+                                                <label>
+                                                    Confirm Password<br>
+                                                    <input type="password" required v-model="registrationForm.confirmPassword">
+                                                </label>
+                                            </div>
+                                            <div style="margin-top: 1rem; text-align: right;">
+                                                <button>Register</button>
+                                            </div>
+                                            <div style="margin-top: 1rem; color: red; text-align: center;" v-if="formError">
+                                                Error: {{ formError }}
+                                            </div>
+                                        </form>
+                                    </template>
+                                    <template v-else>
+                                        You are logged in as <span style="color: green; font-weight: 500;">{{ settings.email }}</span>
                                         <div style="margin-top: 1rem">
-                                            <label>
-                                                Password<br>
-                                                <input type="password" required v-model="loginForm.password">
-                                            </label>
+                                            <button @click="changePassword">Change Password</button>
+                                            <button @click="logout" style="margin-left: 1rem">Logout</button>
                                         </div>
-                                        <div style="margin-top: 1rem; text-align: right;">
-                                            <button>Login</button>
-                                        </div>
-                                    </form>
-                                    <form @submit.prevent v-show="accountView === 'Register'">
-                                        <div>
-                                            <label>
-                                                Email<br>
-                                                <input type="text" required v-model="registrationForm.email">
-                                            </label>
-                                        </div>
-                                        <div style="margin-top: 1rem">
-                                            <label>
-                                                Password<br>
-                                                <input type="password" required v-model="registrationForm.password">
-                                            </label>
-                                        </div>
-                                        <div style="margin-top: 1rem">
-                                            <label>
-                                                Confirm Password<br>
-                                                <input type="password" required v-model="registrationForm.confirmPassword">
-                                            </label>
-                                        </div>
-                                        <div style="margin-top: 1rem; text-align: right;">
-                                            <button>Register</button>
-                                        </div>
-                                    </form>
+                                    </template>
                                 </div>
                             </div>
                         </div>

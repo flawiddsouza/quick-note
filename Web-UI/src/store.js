@@ -27,7 +27,8 @@ export const useStore = defineStore('store', {
                 email: '',
                 password: ''
             },
-            skipSettingsUpdate: true
+            skipSettingsUpdate: true,
+            token: null
         }
     },
     getters: {
@@ -51,7 +52,7 @@ export const useStore = defineStore('store', {
             this.settings = await getItem('settings') ?? {
                 privacyModeEnabled: false,
                 privacyModePercent: 50,
-                username: '',
+                email: '',
                 password: ''
             }
 
