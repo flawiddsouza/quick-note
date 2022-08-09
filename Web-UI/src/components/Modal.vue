@@ -21,6 +21,7 @@
 .modal {
     background-color: white;
     padding: 1rem;
+    font-size: var(--secondary-font-size);
 }
 
 .fade-enter-active,
