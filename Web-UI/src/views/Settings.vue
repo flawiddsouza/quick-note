@@ -173,7 +173,7 @@ watch(settings, () => {
                                             <div>
                                                 <label>
                                                     Email<br>
-                                                    <input type="text" required v-model="loginForm.email" :disabled="formProcessing">
+                                                    <input type="email" spellcheck="false" required v-model="loginForm.email" :disabled="formProcessing">
                                                 </label>
                                             </div>
                                             <div style="margin-top: 1rem">
@@ -194,7 +194,7 @@ watch(settings, () => {
                                             <div>
                                                 <label>
                                                     Email<br>
-                                                    <input type="text" required v-model="registrationForm.email" :disabled="formProcessing">
+                                                    <input type="email" spellcheck="false" required v-model="registrationForm.email" :disabled="formProcessing">
                                                 </label>
                                             </div>
                                             <div style="margin-top: 1rem">
@@ -272,7 +272,7 @@ watch(settings, () => {
     box-shadow: 0px 0px 2px rgb(0 0 0 / 12%), 0px 1px 8px -5px rgb(0 0 0 / 24%);
 }
 
-input[type="text"], input[type="password"] {
+input[type="text"], input[type="email"], input[type="password"] {
     font: inherit;
     background-color: transparent;
     outline: 0;
@@ -282,7 +282,7 @@ input[type="text"], input[type="password"] {
     color: black;
 }
 
-input[type="text"]:focus, input[type="password"]:focus {
+input[type="text"]:focus, input[type="email"]:focus, input[type="password"]:focus {
     border-color: #e91e63;
 }
 
