@@ -3,12 +3,19 @@ import { getItem, setItem } from './db'
 import * as Automerge from 'automerge'
 import { nanoid } from 'nanoid'
 import PersistentWebSocket from 'pws'
+import { serialize, deserialize } from 'bson'
 
 let automergeDoc = null
+let automergeSyncState = null
 
-function saveAutoMergeDoc(updatedAutomergeDoc) {
+function saveAutomergeDoc(updatedAutomergeDoc) {
     automergeDoc = updatedAutomergeDoc
     setItem('automergeDoc', Automerge.save(updatedAutomergeDoc))
+}
+
+function saveAutomergeSyncState(updatedAutomergeSyncState) {
+    automergeSyncState = updatedAutomergeSyncState
+    setItem('automergeSyncState', Automerge.Backend.encodeSyncState(updatedAutomergeSyncState))
 }
 
 async function getToken(email, password) {
@@ -56,7 +63,8 @@ export const useStore = defineStore('store', {
                 password: ''
             },
             skipSettingsUpdate: true,
-            token: null
+            token: null,
+            clientId: null
         }
     },
     getters: {
@@ -75,6 +83,13 @@ export const useStore = defineStore('store', {
         }
     },
     actions: {
+        async loadNotesAndCategories() {
+            this.categories = automergeDoc.categories ? JSON.parse(JSON.stringify(automergeDoc.categories)) : []
+
+            this.categories.unshift({ id: null, name: 'Main' })
+
+            this.notes = automergeDoc.notes ? JSON.parse(JSON.stringify(automergeDoc.notes)) : []
+        },
         // should be run only once when the app is first loaded
         async loadDB() {
             this.settings = await getItem('settings') ?? {
@@ -92,14 +107,25 @@ export const useStore = defineStore('store', {
                 automergeDoc = Automerge.load(savedAutomergeDoc)
             }
 
-            this.categories = automergeDoc.categories ? JSON.parse(JSON.stringify(automergeDoc.categories)) : []
+            automergeSyncState = Automerge.initSyncState()
 
-            this.categories.unshift({ id: null, name: 'Main' })
+            const savedAutomergeSyncState = await getItem('automergeSyncState')
 
-            this.notes = automergeDoc.notes ? JSON.parse(JSON.stringify(automergeDoc.notes)) : []
+            if(savedAutomergeSyncState) {
+                automergeSyncState = Automerge.Backend.decodeSyncState(savedAutomergeSyncState)
+            }
+
+            this.loadNotesAndCategories()
 
             // to avoid unncessary db write when settings are loaded from the db for the first time
             this.skipSettingsUpdate = false
+
+            this.clientId = await getItem('clientId')
+
+            if(this.clientId === undefined) {
+                this.clientId = nanoid()
+                await setItem('clientId', this.clientId)
+            }
 
             if(this.settings.email !== '') {
                 this.token = await getToken(this.settings.email, this.settings.password)
@@ -111,10 +137,69 @@ export const useStore = defineStore('store', {
 
             ws.onopen = () => {
                 console.log('connected to websocket')
+
+                ws.send(serialize({ eventName: 'clientId', payload: this.clientId }))
+
+                const [updatedAutomergeSyncState, syncMessage] = Automerge.generateSyncMessage(
+                    automergeDoc,
+                    automergeSyncState
+                )
+
+                if(syncMessage !== null) {
+                    const send = {
+                        eventName: 'syncMessage',
+                        payload: syncMessage
+                    }
+                    ws.send(serialize(send))
+                    console.log('sent', send)
+                } else {
+                    console.log('nothing to sync')
+                }
+
+                saveAutomergeSyncState(updatedAutomergeSyncState)
             }
 
-            ws.onmessage = event => {
-                console.log('receive websocket message', event.data)
+            ws.onmessage = async event => {
+                try {
+                    const { eventName, payload } = deserialize(await event.data.arrayBuffer(), { promoteBuffers: true })
+
+                    console.log('received', { eventName, payload })
+
+                    if(eventName === 'syncMessage') {
+                        const [updatedAutomergeDoc, updatedAutomergeSyncState] = Automerge.receiveSyncMessage(
+                            automergeDoc,
+                            automergeSyncState,
+                            payload
+                        )
+
+                        saveAutomergeDoc(updatedAutomergeDoc)
+                        saveAutomergeSyncState(updatedAutomergeSyncState)
+
+                        this.loadNotesAndCategories()
+
+                        {
+                            const [updatedAutomergeSyncState, syncMessage] = Automerge.generateSyncMessage(
+                                automergeDoc,
+                                automergeSyncState
+                            )
+
+                            if(syncMessage !== null) {
+                                const send = {
+                                    eventName: 'syncMessage',
+                                    payload: syncMessage
+                                }
+                                ws.send(serialize(send))
+                                console.log('sent', send)
+                            } else {
+                                console.log('nothing to sync')
+                            }
+
+                            saveAutomergeSyncState(updatedAutomergeSyncState)
+                        }
+                    }
+                } catch(e) {
+                    console.error('WebSocket: Invalid client message received', e)
+                }
             }
 
             ws.onclose = () => {
@@ -138,7 +223,7 @@ export const useStore = defineStore('store', {
                 automergeDocChange.categories.push(category)
             })
 
-            saveAutoMergeDoc(updatedAutomergeDoc)
+            saveAutomergeDoc(updatedAutomergeDoc)
         },
         async updateCategory(existingCategory, name) {
             if(existingCategory.name !== name) {
@@ -151,7 +236,7 @@ export const useStore = defineStore('store', {
                     categoryToUpdateInAutomerge.modified = existingCategory.modified
                 })
 
-                saveAutoMergeDoc(updatedAutomergeDoc)
+                saveAutomergeDoc(updatedAutomergeDoc)
             }
         },
         async deleteCategory(id) {
@@ -177,7 +262,7 @@ export const useStore = defineStore('store', {
                 automergeDocChange.categories.splice(index2, 1)
             })
 
-            saveAutoMergeDoc(updatedAutomergeDoc)
+            saveAutomergeDoc(updatedAutomergeDoc)
         },
         async addNote(title, content) {
             if(title === '' && content === '') {
@@ -202,7 +287,7 @@ export const useStore = defineStore('store', {
                 automergeDocChange.notes.push(note)
             })
 
-            saveAutoMergeDoc(updatedAutomergeDoc)
+            saveAutomergeDoc(updatedAutomergeDoc)
         },
         async updateNote(existingNote, title, content) {
             if(title === '' && content === '') {
@@ -222,7 +307,7 @@ export const useStore = defineStore('store', {
                     noteToUpdateInAutomerge.modified = existingNote.modified
                 })
 
-                saveAutoMergeDoc(updatedAutomergeDoc)
+                saveAutomergeDoc(updatedAutomergeDoc)
             }
         },
         async deleteNote(id) {
@@ -238,7 +323,7 @@ export const useStore = defineStore('store', {
                 automergeDocChange.notes.splice(index2, 1)
             })
 
-            saveAutoMergeDoc(updatedAutomergeDoc)
+            saveAutomergeDoc(updatedAutomergeDoc)
         },
         async goBack() {
             if(this.note.id) {

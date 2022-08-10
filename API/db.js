@@ -1,6 +1,9 @@
 import sql from './sql.js'
 import bcrypt from 'bcrypt'
 import jwt from 'jsonwebtoken'
+import * as Automerge from 'automerge'
+import { promises as fs } from 'fs'
+import { serialize, deserialize } from 'bson'
 
 const saltRounds = 10
 
@@ -70,4 +73,65 @@ export function generateToken(userId) {
 
 export function validateToken(token) {
     return jwt.verify(token, process.env.JWT_SECRET)
+}
+
+function generateFileKey(key, userId, clientId) {
+    let generatedFileKey = `${userId}-${key}`
+    if(clientId) {
+        generatedFileKey += `-${clientId}`
+    }
+    return generatedFileKey
+}
+
+async function getItem({ key, userId, clientId })  {
+    try {
+        return await fs.readFile(`./store/${generateFileKey(key, userId, clientId)}`)
+    } catch(e) {
+        return null
+    }
+}
+
+async function setItem({ key, userId, clientId }, value) {
+    await fs.writeFile(`./store/${generateFileKey(key, userId, clientId)}`, value)
+}
+
+let automergeDocs = {}
+let automergeSyncStates = {}
+
+export async function getAutomergeDocForUser(userId) {
+    const savedAutomergeDoc = await getItem({ key: 'automergeDoc', userId })
+
+    if(savedAutomergeDoc) {
+        automergeDocs[userId] = Automerge.load(savedAutomergeDoc)
+    } else {
+        automergeDocs[userId] = Automerge.init()
+    }
+
+    return automergeDocs[userId]
+}
+
+export async function saveAutomergeDocForUse(userId, updatedAutomergeDoc) {
+    await setItem({ key: 'automergeDoc', userId }, Automerge.save(updatedAutomergeDoc))
+    automergeDocs[userId] = updatedAutomergeDoc
+}
+
+export async function getAutomergeSyncStateForClient(userId, clientId) {
+    if(userId in automergeSyncStates === false) {
+        automergeSyncStates[userId] = {}
+    }
+
+    const savedAutomergeSyncState = await getItem({ key: 'automergeSyncState', userId, clientId })
+
+    if(savedAutomergeSyncState) {
+        automergeSyncStates[userId][clientId] = deserialize(savedAutomergeSyncState, { promoteBuffers: true })
+    } else {
+        automergeSyncStates[userId][clientId] = Automerge.initSyncState()
+    }
+
+    return automergeSyncStates[userId][clientId]
+}
+
+export async function saveAutomergeSyncStateForClient(userId, clientId, updatedAutomergeSyncState) {
+    await setItem({ key: 'automergeSyncState', userId, clientId }, serialize(updatedAutomergeSyncState))
+    automergeSyncStates[userId][clientId] = updatedAutomergeSyncState
 }

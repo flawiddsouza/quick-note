@@ -6,6 +6,7 @@ import { parse } from 'url'
 import routes from './routes.js'
 import { validateToken } from './db.js'
 import cors from 'cors'
+import { websocketConnectionHandler } from './websocket.js'
 
 const app = express()
 
@@ -20,12 +21,7 @@ const wss = new WebSocketServer({
     noServer: true
 })
 
-wss.on('connection', (ws, decodedToken) => {
-    console.log(decodedToken)
-    ws.on('message', data => {
-        console.log('client message received', data)
-    })
-})
+wss.on('connection', websocketConnectionHandler)
 
 server.on('upgrade', (req, socket, head) => {
     const { pathname, query } = parse(req.url)
