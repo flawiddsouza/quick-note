@@ -46,7 +46,7 @@ async function getToken(email, password) {
     let response
 
     try {
-        response = await fetch(`${import.meta.env._API_URL}/login`, {
+        response = await fetch(`${import.meta.env.QUICK_NOTE_API_URL}/login`, {
             method: 'POST',
             body: JSON.stringify({
                 email,
@@ -157,7 +157,7 @@ export const useStore = defineStore('store', {
         },
         // called whenever store.token changes, watch handler in App.vue
         async connectToWebSocket() {
-            const ws = new PersistentWebSocket(`${import.meta.env._WEBSOCKET_URL}?token=${this.token}`)
+            const ws = new PersistentWebSocket(`${import.meta.env.QUICK_NOTE_WEBSOCKET_URL}?token=${this.token}`)
 
             ws.onopen = () => {
                 console.log('connected to websocket')

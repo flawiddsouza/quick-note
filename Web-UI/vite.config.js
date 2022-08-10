@@ -42,5 +42,5 @@ export default defineConfig({
             }
         })
     ],
-    envPrefix: '_'
+    envPrefix: 'QUICK_NOTE_'
 })

@@ -27,7 +27,7 @@ async function login() {
     let response
 
     try {
-        response = await fetch(`${import.meta.env._API_URL}/login`, {
+        response = await fetch(`${import.meta.env.QUICK_NOTE_API_URL}/login`, {
             method: 'POST',
             body: JSON.stringify(loginForm.value),
             headers: {
@@ -73,7 +73,7 @@ async function register() {
     let response
 
     try {
-        response = await fetch(`${import.meta.env._API_URL}/register`, {
+        response = await fetch(`${import.meta.env.QUICK_NOTE_API_URL}/register`, {
             method: 'POST',
             body: JSON.stringify(registrationForm.value),
             headers: {
