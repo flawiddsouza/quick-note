@@ -115,9 +115,7 @@ function logout() {
         return
     }
 
-    settings.value.email = ''
-    settings.value.password = ''
-    store.token = null
+    store.logout()
 }
 
 function goBack() {

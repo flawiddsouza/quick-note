@@ -325,6 +325,22 @@ export const useStore = defineStore('store', {
         },
         async saveSettings() {
             await setItem('settings', JSON.parse(JSON.stringify(this.settings)))
+        },
+        logout() {
+            // destroy websocket
+            if(websocket) {
+                websocket.close()
+                websocket = null
+            }
+            // clear credentials
+            this.settings.email = ''
+            this.settings.password = ''
+            this.token = null
+            // reset sync state
+            saveAutomergeSyncState(Automerge.initSyncState())
+            // reset client id
+            this.clientId = nanoid()
+            setItem('clientId', this.clientId)
         }
     }
 })
