@@ -7,6 +7,26 @@ import {
 } from './db.js'
 import { serialize, deserialize } from 'bson'
 
+async function createSync(userId, ws) {
+    const [updatedAutomergeSyncState, syncMessage] = Automerge.generateSyncMessage(
+        await getAutomergeDocForUser(userId),
+        await getAutomergeSyncStateForClient(userId, ws.clientId)
+    )
+
+    if(syncMessage !== null) {
+        const send = {
+            eventName: 'syncMessage',
+            payload: syncMessage
+        }
+        ws.send(serialize(send))
+        console.log('sent', send)
+    } else {
+        console.log('nothing to sync')
+    }
+
+    await saveAutomergeSyncStateForClient(userId, ws.clientId, updatedAutomergeSyncState)
+}
+
 export async function websocketConnectionHandler(ws, decodedToken) {
     const userId = decodedToken.userId
 
@@ -19,23 +39,7 @@ export async function websocketConnectionHandler(ws, decodedToken) {
             if(eventName === 'clientId') {
                 ws.clientId = payload
 
-                const [updatedAutomergeSyncState, syncMessage] = Automerge.generateSyncMessage(
-                    await getAutomergeDocForUser(userId),
-                    await getAutomergeSyncStateForClient(userId, ws.clientId)
-                )
-
-                if(syncMessage !== null) {
-                    const send = {
-                        eventName: 'syncMessage',
-                        payload: syncMessage
-                    }
-                    ws.send(serialize(send))
-                    console.log('sent', send)
-                } else {
-                    console.log('nothing to sync')
-                }
-
-                await saveAutomergeSyncStateForClient(userId, ws.clientId, updatedAutomergeSyncState)
+                await createSync(userId, ws)
             }
 
             if(eventName === 'syncMessage') {
@@ -48,25 +52,7 @@ export async function websocketConnectionHandler(ws, decodedToken) {
                 await saveAutomergeDocForUse(userId, updatedAutomergeDoc)
                 await saveAutomergeSyncStateForClient(userId, ws.clientId, updatedAutomergeSyncState)
 
-                {
-                    const [updatedAutomergeSyncState, syncMessage] = Automerge.generateSyncMessage(
-                        await getAutomergeDocForUser(userId),
-                        await getAutomergeSyncStateForClient(userId, ws.clientId)
-                    )
-
-                    if(syncMessage !== null) {
-                        const send = {
-                            eventName: 'syncMessage',
-                            payload: syncMessage
-                        }
-                        ws.send(serialize(send))
-                        console.log('sent', send)
-                    } else {
-                        console.log('nothing to sync')
-                    }
-
-                    await saveAutomergeSyncStateForClient(userId, ws.clientId, updatedAutomergeSyncState)
-                }
+                await createSync(userId, ws)
             }
         } catch(e) {
             console.error('WebSocket: Invalid client message received', e.message, e.stack)
