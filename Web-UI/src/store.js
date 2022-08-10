@@ -7,10 +7,34 @@ import { serialize, deserialize } from 'bson'
 
 let automergeDoc = null
 let automergeSyncState = null
+let websocket = null
+
+function createSync() {
+    const [updatedAutomergeSyncState, syncMessage] = Automerge.generateSyncMessage(
+        automergeDoc,
+        automergeSyncState
+    )
+
+    if(syncMessage !== null) {
+        const send = {
+            eventName: 'syncMessage',
+            payload: syncMessage
+        }
+        websocket.send(serialize(send))
+        console.log('sent', send)
+    } else {
+        console.log('nothing to sync')
+    }
+
+    saveAutomergeSyncState(updatedAutomergeSyncState)
+}
 
 function saveAutomergeDoc(updatedAutomergeDoc) {
     automergeDoc = updatedAutomergeDoc
     setItem('automergeDoc', Automerge.save(updatedAutomergeDoc))
+    if(websocket && websocket.readyState === websocket.OPEN)  {
+        createSync()
+    }
 }
 
 function saveAutomergeSyncState(updatedAutomergeSyncState) {
@@ -140,23 +164,9 @@ export const useStore = defineStore('store', {
 
                 ws.send(serialize({ eventName: 'clientId', payload: this.clientId }))
 
-                const [updatedAutomergeSyncState, syncMessage] = Automerge.generateSyncMessage(
-                    automergeDoc,
-                    automergeSyncState
-                )
+                websocket = ws
 
-                if(syncMessage !== null) {
-                    const send = {
-                        eventName: 'syncMessage',
-                        payload: syncMessage
-                    }
-                    ws.send(serialize(send))
-                    console.log('sent', send)
-                } else {
-                    console.log('nothing to sync')
-                }
-
-                saveAutomergeSyncState(updatedAutomergeSyncState)
+                createSync()
             }
 
             ws.onmessage = async event => {
@@ -172,30 +182,10 @@ export const useStore = defineStore('store', {
                             payload
                         )
 
-                        saveAutomergeDoc(updatedAutomergeDoc)
                         saveAutomergeSyncState(updatedAutomergeSyncState)
+                        saveAutomergeDoc(updatedAutomergeDoc)
 
                         this.loadNotesAndCategories()
-
-                        {
-                            const [updatedAutomergeSyncState, syncMessage] = Automerge.generateSyncMessage(
-                                automergeDoc,
-                                automergeSyncState
-                            )
-
-                            if(syncMessage !== null) {
-                                const send = {
-                                    eventName: 'syncMessage',
-                                    payload: syncMessage
-                                }
-                                ws.send(serialize(send))
-                                console.log('sent', send)
-                            } else {
-                                console.log('nothing to sync')
-                            }
-
-                            saveAutomergeSyncState(updatedAutomergeSyncState)
-                        }
                     }
                 } catch(e) {
                     console.error('WebSocket: Invalid client message received', e)
