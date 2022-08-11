@@ -123,7 +123,16 @@ export const useStore = defineStore('store', {
                 password: ''
             }
 
-            automergeDoc = Automerge.init()
+            const schema = Automerge.change(Automerge.init({ actorId: '0000' }), { time: 0 }, doc => {
+                doc.categories = []
+                doc.notes = []
+            })
+
+            const initChange = Automerge.getLastLocalChange(schema)
+
+            const [ initDoc ] = Automerge.applyChanges(Automerge.init(), [ initChange ])
+
+            automergeDoc = initDoc
 
             const savedAutomergeDoc = await getItem('automergeDoc')
 
@@ -207,9 +216,6 @@ export const useStore = defineStore('store', {
             this.categories.push(category)
 
             const updatedAutomergeDoc = Automerge.change(automergeDoc, automergeDocChange => {
-                if(!automergeDocChange.categories) {
-                    automergeDocChange.categories = []
-                }
                 automergeDocChange.categories.push(category)
             })
 
@@ -271,9 +277,6 @@ export const useStore = defineStore('store', {
             this.notes.push(note)
 
             const updatedAutomergeDoc = Automerge.change(automergeDoc, automergeDocChange => {
-                if(!automergeDocChange.notes) {
-                    automergeDocChange.notes = []
-                }
                 automergeDocChange.notes.push(note)
             })
 

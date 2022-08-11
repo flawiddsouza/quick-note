@@ -1,7 +1,7 @@
 import sql from './sql.js'
 import bcrypt from 'bcrypt'
 import jwt from 'jsonwebtoken'
-import * as Automerge from 'automerge'
+import Automerge from 'automerge'
 import { promises as fs } from 'fs'
 import { serialize, deserialize } from 'bson'
 
@@ -104,7 +104,16 @@ export async function getAutomergeDocForUser(userId) {
     if(savedAutomergeDoc) {
         automergeDocs[userId] = Automerge.load(savedAutomergeDoc)
     } else {
-        automergeDocs[userId] = Automerge.init()
+        const schema = Automerge.change(Automerge.init({ actorId: '0000' }), { time: 0 }, doc => {
+            doc.categories = []
+            doc.notes = []
+        })
+
+        const initChange = Automerge.getLastLocalChange(schema)
+
+        const [ initDoc ] = Automerge.applyChanges(Automerge.init(), [ initChange ])
+
+        automergeDocs[userId] = initDoc
     }
 
     return automergeDocs[userId]

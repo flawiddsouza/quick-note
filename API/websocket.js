@@ -1,4 +1,4 @@
-import * as Automerge from 'automerge'
+import Automerge from 'automerge'
 import {
     getAutomergeDocForUser,
     saveAutomergeDocForUse,
