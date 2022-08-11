@@ -140,8 +140,8 @@ async function importFromWriter(e) {
         const db = new SQL.Database(Uints)
 
         try {
-            const notes = db.exec('SELECT * FROM entries')[0]
-            const categories = db.exec('SELECT * FROM categories')[0]
+            const categories = db.exec('SELECT * FROM categories')[0] ?? { values: [] }
+            const notes = db.exec('SELECT * FROM entries')[0] ?? { values: [] }
 
             categories.values.forEach(category => {
                 // skip already existing ids (= already imported)
@@ -151,8 +151,8 @@ async function importFromWriter(e) {
                 }
                 store.addCategory(category[1], {
                     id: category[0],
-                    created: category[2],
-                    modified: category[3]
+                    created: new Date(category[2] + 'Z').toISOString(),
+                    modified: new Date(category[3] + 'Z').toISOString()
                 })
                 console.log('Import From Writer: imported category', category[0])
             })
@@ -166,8 +166,8 @@ async function importFromWriter(e) {
                 store.addNote(note[1], note[2], {
                     id: note[0],
                     categoryId: note[5],
-                    created: note[3],
-                    modified: note[4]
+                    created: new Date(note[3] + 'Z').toISOString(),
+                    modified: new Date(note[4] + 'Z').toISOString()
                 })
                 console.log('Import From Writer: imported note', note[0])
             })
