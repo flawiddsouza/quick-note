@@ -1,6 +1,4 @@
 settings
     privacy mode
-    sign in
 
-sync
-    on load, send whatever changes we have to the server, wait for the server to merge the changes and send back the latest automerge doc, and then we merge that doc to our automerge doc and persist it to browser db
+fully abstract away the automerge implementation with your own api to be able to substitute it easily with another system
