@@ -16,6 +16,7 @@
         "nanoid": "^4.0.0",
         "pinia": "^2.0.17",
         "pws": "^7.0.0",
+        "sql.js": "^1.7.0",
         "vue": "^3.2.37"
     },
     "devDependencies": {

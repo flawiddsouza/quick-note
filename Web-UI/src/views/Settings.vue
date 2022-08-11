@@ -1,8 +1,11 @@
 <script setup>
-import { ref, watch } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { useStore } from '../store'
 import Frame from '../components/Frame.vue'
 import { storeToRefs } from 'pinia'
+import initSqlJs from 'sql.js'
+
+let SQL = null
 
 const store = useStore()
 const { settings } = storeToRefs(store)
@@ -128,6 +131,56 @@ async function resetApplication() {
     alert('Application reset completed')
 }
 
+async function importFromWriter(e) {
+    const fileInput = e.target.querySelector('input[type="file"]')
+    const f = fileInput.files[0]
+    const r = new FileReader()
+    r.onload = function() {
+        const Uints = new Uint8Array(r.result)
+        const db = new SQL.Database(Uints)
+
+        try {
+            const notes = db.exec('SELECT * FROM entries')[0]
+            const categories = db.exec('SELECT * FROM categories')[0]
+
+            categories.values.forEach(category => {
+                // skip already existing ids (= already imported)
+                if(store.categories.some(category2 => category2.id === category[0])) {
+                    console.log('Import From Writer: skipped category', category[0])
+                    return
+                }
+                store.addCategory(category[1], {
+                    id: category[0],
+                    created: category[2],
+                    modified: category[3]
+                })
+                console.log('Import From Writer: imported category', category[0])
+            })
+
+            notes.values.forEach(note => {
+                // skip already existing ids (= already imported)
+                if(store.notes.some(note2 => note2.id === note[0])) {
+                    console.log('Import From Writer: skipped note', note[0])
+                    return
+                }
+                store.addNote(note[1], note[2], {
+                    id: note[0],
+                    categoryId: note[5],
+                    created: note[3],
+                    modified: note[4]
+                })
+                console.log('Import From Writer: imported note', note[0])
+            })
+
+            alert('Import from Writer completed')
+        } catch(e) {
+            console.log('Import From Writer: Invalid backup file given', e.message)
+            alert('Unable to import from Writer. Invalid or corrupt backup file given.')
+        }
+    }
+    r.readAsArrayBuffer(f)
+}
+
 function goBack() {
     history.back()
 }
@@ -138,6 +191,12 @@ watch(settings, () => {
     }
     store.saveSettings()
 }, { deep: true })
+
+onMounted(async() => {
+    SQL = await initSqlJs({
+        locateFile: file => `/assets/${file}`
+    })
+})
 </script>
 
 <template>
@@ -248,6 +307,21 @@ watch(settings, () => {
                         </div>
                     </div>
                 </div>
+                <div style="border-top: 1px solid var(--primary-border-color)"></div>
+                <div style="padding: 1rem;">
+                    <div style="font-weight: 500">Import From <a href="https://play.google.com/store/apps/details?id=com.flawiddsouza.writer" target="_blank">Writer</a></div>
+                    <div style="font-size: var(--secondary-font-size)">
+                        <div style="margin-top: 1rem;">Import your Writer backup here</div>
+                        <form @submit.prevent="importFromWriter" style="margin-top: 1rem">
+                            <div>
+                                <input type="file" required accept=".db">
+                            </div>
+                            <div style="margin-top: 1rem">
+                                <button>Import Writer Backup</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
             </div>
         </template>
     </Frame>
@@ -302,6 +376,21 @@ input[type="text"], input[type="email"], input[type="password"] {
 
 input[type="text"]:focus, input[type="email"]:focus, input[type="password"]:focus {
     border-color: #e91e63;
+}
+
+input[type="file"] {
+    border: 1px solid var(--primary-border-color);
+    padding: 0.5rem;
+}
+
+@media (hover: hover) {
+    input[type="file"]:hover {
+        background-color: rgba(95, 95, 95, 0.048);
+    }
+}
+
+input[type="file"]:active {
+    background-color: rgba(95, 95, 95, 0.048);
 }
 
 button {

@@ -205,12 +205,12 @@ export const useStore = defineStore('store', {
                 console.log('websocket closed')
             }
         },
-        async addCategory(name) {
+        async addCategory(name, fieldOverrides={}) {
             const category = {
-                id: nanoid(),
+                id: 'id' in fieldOverrides ? fieldOverrides.id : nanoid(),
                 name,
-                created: new Date().toISOString(),
-                modified: new Date().toISOString()
+                created: 'created' in fieldOverrides ? fieldOverrides.created : new Date().toISOString(),
+                modified: 'modified' in fieldOverrides ? fieldOverrides.modified : new Date().toISOString()
             }
 
             this.categories.push(category)
@@ -260,18 +260,18 @@ export const useStore = defineStore('store', {
 
             saveAutomergeDoc(updatedAutomergeDoc)
         },
-        async addNote(title, content) {
+        async addNote(title, content, fieldOverrides={}) {
             if(title === '' && content === '') {
                 return
             }
 
             const note = {
-                id: nanoid(),
-                categoryId: this.currentCategoryId,
+                id: 'id' in fieldOverrides ? fieldOverrides.id : nanoid(),
+                categoryId: 'categoryId' in fieldOverrides ? fieldOverrides.categoryId : this.currentCategoryId,
                 title,
                 content,
-                created: new Date().toISOString(),
-                modified: new Date().toISOString()
+                created: 'created' in fieldOverrides ? fieldOverrides.created : new Date().toISOString(),
+                modified: 'modified' in fieldOverrides ? fieldOverrides.modified : new Date().toISOString()
             }
 
             this.notes.push(note)
