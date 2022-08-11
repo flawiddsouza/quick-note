@@ -85,14 +85,32 @@ function generateFileKey(key, userId, clientId) {
 
 async function getItem({ key, userId, clientId })  {
     try {
-        return await fs.readFile(`./store/${generateFileKey(key, userId, clientId)}`)
+        let item
+        if(clientId) {
+            [item] = await sql`select * from user_client_store where key = ${key} AND user_id = ${userId} AND client_id = ${clientId}`
+        } else {
+            [item] = await sql`select * from user_store where key = ${key} AND user_id = ${userId}`
+        }
+        return item.value
     } catch(e) {
         return null
     }
 }
 
 async function setItem({ key, userId, clientId }, value) {
-    await fs.writeFile(`./store/${generateFileKey(key, userId, clientId)}`, value)
+    if(clientId) {
+        await sql`
+            insert into user_client_store(user_id, client_id, key, value) values(${userId}, ${clientId}, ${key}, ${value})
+            on conflict(user_id, client_id, key)
+            do update set value = ${value}
+        `
+    } else {
+        await sql`
+            insert into user_store(user_id, key, value) values(${userId}, ${key}, ${value})
+            on conflict(user_id, key)
+            do update set value = ${value}
+        `
+    }
 }
 
 let automergeDocs = {}
@@ -103,6 +121,8 @@ export async function getAutomergeDocForUser(userId) {
 
     if(savedAutomergeDoc) {
         automergeDocs[userId] = Automerge.load(savedAutomergeDoc)
+
+        console.log('loaded savedAutomergeDoc')
     } else {
         const schema = Automerge.change(Automerge.init({ actorId: '0000' }), { time: 0 }, doc => {
             doc.categories = []
@@ -114,14 +134,18 @@ export async function getAutomergeDocForUser(userId) {
         const [ initDoc ] = Automerge.applyChanges(Automerge.init(), [ initChange ])
 
         automergeDocs[userId] = initDoc
+
+        console.log('unable to find savedAutomergeDoc, initialized automergeDoc')
     }
 
     return automergeDocs[userId]
 }
 
-export async function saveAutomergeDocForUse(userId, updatedAutomergeDoc) {
+export async function saveAutomergeDocForUser(userId, updatedAutomergeDoc) {
     await setItem({ key: 'automergeDoc', userId }, Automerge.save(updatedAutomergeDoc))
     automergeDocs[userId] = updatedAutomergeDoc
+
+    console.log('saved automergeDoc')
 }
 
 export async function getAutomergeSyncStateForClient(userId, clientId) {
@@ -132,9 +156,19 @@ export async function getAutomergeSyncStateForClient(userId, clientId) {
     const savedAutomergeSyncState = await getItem({ key: 'automergeSyncState', userId, clientId })
 
     if(savedAutomergeSyncState) {
-        automergeSyncStates[userId][clientId] = deserialize(savedAutomergeSyncState, { promoteBuffers: true })
+        try {
+            automergeSyncStates[userId][clientId] = deserialize(savedAutomergeSyncState, { promoteBuffers: true })
+
+            console.log('loaded savedAutomergeSyncState')
+        } catch(e) {
+            automergeSyncStates[userId][clientId] = Automerge.initSyncState()
+
+            console.log('getAutomergeSyncStateForClient failed when deserializing savedAutomergeSyncState', e.message)
+        }
     } else {
         automergeSyncStates[userId][clientId] = Automerge.initSyncState()
+
+        console.log('unable to find savedAutomergeSyncState, initialized automergeSyncState')
     }
 
     return automergeSyncStates[userId][clientId]
@@ -143,4 +177,6 @@ export async function getAutomergeSyncStateForClient(userId, clientId) {
 export async function saveAutomergeSyncStateForClient(userId, clientId, updatedAutomergeSyncState) {
     await setItem({ key: 'automergeSyncState', userId, clientId }, serialize(updatedAutomergeSyncState))
     automergeSyncStates[userId][clientId] = updatedAutomergeSyncState
+
+    console.log('saved automergeSyncState')
 }

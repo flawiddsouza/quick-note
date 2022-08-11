@@ -1,7 +1,7 @@
 import Automerge from 'automerge'
 import {
     getAutomergeDocForUser,
-    saveAutomergeDocForUse,
+    saveAutomergeDocForUser,
     getAutomergeSyncStateForClient,
     saveAutomergeSyncStateForClient
 } from './db.js'
@@ -49,7 +49,7 @@ export async function websocketConnectionHandler(ws, decodedToken) {
                     payload
                 )
 
-                await saveAutomergeDocForUse(userId, updatedAutomergeDoc)
+                await saveAutomergeDocForUser(userId, updatedAutomergeDoc)
                 await saveAutomergeSyncStateForClient(userId, ws.clientId, updatedAutomergeSyncState)
 
                 await createSync(userId, ws)
