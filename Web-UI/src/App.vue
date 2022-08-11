@@ -5,7 +5,7 @@ import Note from './views/Note.vue'
 import Settings from './views/Settings.vue'
 import ReloadPrompt from './components/ReloadPrompt.vue'
 import { storeToRefs } from 'pinia'
-import { watch } from 'vue'
+import { watch, onMounted } from 'vue'
 
 const store = useStore()
 const { token } = storeToRefs(store)
@@ -28,6 +28,21 @@ window.addEventListener('popstate', async(event) => {
 watch(token, () => {
     if(token.value) {
         store.connectToWebSocket()
+    }
+})
+
+// On page load
+onMounted(() => {
+    // If url ends with /settings, go to settings and give option to navigate back to home on pressing back button on browser
+    if(document.location.pathname === '/settings') {
+        window.history.pushState({}, '', '/')
+        window.history.replaceState({}, '', '/settings')
+        store.currentView = 'Settings'
+    }
+
+    // If url ends with /note, go to home and replace the navigation to /note with /, so history thinks the user actually navigated to /
+    if(document.location.pathname === '/note') {
+        window.history.replaceState({}, '', '/')
     }
 })
 </script>
