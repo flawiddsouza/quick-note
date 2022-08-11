@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { getItem, setItem } from './db'
+import { getItem, setItem, deleteItem } from './db'
 import * as Automerge from 'automerge'
 import { nanoid } from 'nanoid'
 import PersistentWebSocket from 'pws'
@@ -329,7 +329,7 @@ export const useStore = defineStore('store', {
         async saveSettings() {
             await setItem('settings', JSON.parse(JSON.stringify(this.settings)))
         },
-        logout() {
+        async logout() {
             // destroy websocket
             if(websocket) {
                 websocket.close()
@@ -344,6 +344,18 @@ export const useStore = defineStore('store', {
             // reset client id
             this.clientId = nanoid()
             setItem('clientId', this.clientId)
+        },
+        async resetApplication() {
+            // destroy websocket
+            if(websocket) {
+                websocket.close()
+                websocket = null
+            }
+            await deleteItem('settings')
+            await deleteItem('automergeDoc')
+            await deleteItem('automergeSyncState')
+            await deleteItem('clientId')
+            await this.loadDB()
         }
     }
 })

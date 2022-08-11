@@ -118,6 +118,16 @@ function logout() {
     store.logout()
 }
 
+async function resetApplication() {
+    if(!confirm('Resetting the application will wipe all your local notes and settings! Are you sure want to proceed?')) {
+        return
+    }
+
+    await store.resetApplication()
+
+    alert('Application reset completed')
+}
+
 function goBack() {
     history.back()
 }
@@ -225,6 +235,16 @@ watch(settings, () => {
                                     </template>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+                </div>
+                <div style="border-top: 1px solid var(--primary-border-color)"></div>
+                <div style="padding: 1rem;">
+                    <div style="font-weight: 500">Reset Application</div>
+                    <div style="font-size: var(--secondary-font-size)">
+                        <div style="margin-top: 1rem;">Resetting the application will wipe all your local notes and settings! But you can get them back by logging in again if you're currently using a sync account. This operation is useful if you're facing any issues with the app or if you want to clear your data from the device.</div>
+                        <div style="margin-top: 1rem">
+                            <button @click="resetApplication">Reset Application</button>
                         </div>
                     </div>
                 </div>

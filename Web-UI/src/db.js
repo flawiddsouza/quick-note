@@ -13,3 +13,7 @@ export async function getItem(key) {
 export async function setItem(key, value) {
     db.store.put(value, key)
 }
+
+export async function deleteItem(key) {
+    db.store.delete(key)
+}
