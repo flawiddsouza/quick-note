@@ -71,8 +71,15 @@ const contextMenu = {
 
 <template>
     <div v-for="note in store.filteredNotes" class="item" @contextmenu.prevent="openNoteContextMenu($event, note)" @click="viewNote(note)">
-        <div class="item-primary">{{ note.title !== '' ? note.title : note.content }}</div>
-        <div class="item-secondary" v-if="note.title !== '' & note.content !== ''">{{ note.content }}</div>
+        <div
+            class="item-primary"
+            :style="{ color: store.settings.privacyModeEnabled ? `rgb(0 0 0 / ${100 - store.settings.privacyModePercent}%)` : false }"
+        >{{ note.title !== '' ? note.title : note.content }}</div>
+        <div
+            class="item-secondary"
+            :style="{ color: store.settings.privacyModeEnabled ? `rgb(0 0 0 / ${100 - store.settings.privacyModePercent}%)` : false }"
+            v-if="note.title !== '' & note.content !== ''"
+        >{{ note.content }}</div>
     </div>
     <ContextMenu v-if="showContextMenu" @close="showContextMenu = false" :left="contextMenuPosition.x" :top="contextMenuPosition.y">
         <div @click="contextMenu.details">Details</div>

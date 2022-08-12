@@ -220,7 +220,11 @@ onMounted(async() => {
                         <div style="margin-top: 0.5rem">
                             <input type="range" min="1" max="100" v-model.number="settings.privacyModePercent" style="width: 100%">
                         </div>
-                        <div style="margin-top: 0.5rem; text-align: center">Observe this text.</div>
+                        <div
+                            style="margin-top: 0.5rem; text-align: center"
+                            :style="{ color: settings.privacyModeEnabled ? `rgb(0 0 0 / ${100 - settings.privacyModePercent}%)` : false }"
+                            :key="settings.privacyModeEnabled"
+                        >Observe this text.</div>
                     </div>
                 </div>
                 <div style="border-top: 1px solid var(--primary-border-color)"></div>

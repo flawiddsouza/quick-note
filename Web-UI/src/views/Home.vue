@@ -83,7 +83,7 @@ function openSettings() {
                     </div>
                 </transition>
                 <div style="overflow-y: auto">
-                    <NotesList />
+                    <NotesList :key="store.settings.privacyModeEnabled" />
                 </div>
             </template>
             <template #app-action-area>

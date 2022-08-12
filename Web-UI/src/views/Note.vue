@@ -43,7 +43,14 @@ watch(note, () => {
             <input type="text" spellcheck="false" v-model="store.noteCopy.title">
         </template>
         <template #app-content>
-            <textarea placeholder="Type here..." spellcheck="false" v-model="store.noteCopy.content" v-focus ref="textarea"></textarea>
+            <textarea
+                placeholder="Type here..."
+                spellcheck="false"
+                :style="{ color: store.settings.privacyModeEnabled ? `rgb(0 0 0 / ${100 - store.settings.privacyModePercent}%)` : false }"
+                v-model="store.noteCopy.content"
+                v-focus
+                ref="textarea"
+            ></textarea>
         </template>
     </Frame>
 </template>
