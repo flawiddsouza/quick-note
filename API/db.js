@@ -57,7 +57,7 @@ export async function changeUserPassword(userId, currentPassword, newPassword) {
     const user = await findUserById(userId)
     if(bcrypt.compareSync(currentPassword, user.password)) {
         const hashedPassword = bcrypt.hashSync(newPassword, saltRounds)
-        await sql`update users set password=${hashedPassword} where id = ${userId}`
+        await sql`update users set password=${hashedPassword}, updated_at=CURRENT_TIMESTAMP where id = ${userId}`
     } else {
         throw new Error('Invalid current password')
     }
@@ -94,13 +94,13 @@ async function setItem({ key, userId, clientId }, value) {
         await sql`
             insert into user_client_store(user_id, client_id, key, value) values(${userId}, ${clientId}, ${key}, ${value})
             on conflict(user_id, client_id, key)
-            do update set value = ${value}
+            do update set value = ${value}, updated_at = CURRENT_TIMESTAMP
         `
     } else {
         await sql`
             insert into user_store(user_id, key, value) values(${userId}, ${key}, ${value})
             on conflict(user_id, key)
-            do update set value = ${value}
+            do update set value = ${value}, updated_at = CURRENT_TIMESTAMP
         `
     }
 }
