@@ -2,3 +2,5 @@ settings
     privacy mode
 
 fully abstract away the automerge implementation with your own api to be able to substitute it easily with another system
+
+if more than one client of the same user is online (meaning connected to websocket), the enable realtime sync of data as and when changes happen
