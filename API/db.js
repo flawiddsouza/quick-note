@@ -75,14 +75,6 @@ export function validateToken(token) {
     return jwt.verify(token, process.env.JWT_SECRET)
 }
 
-function generateFileKey(key, userId, clientId) {
-    let generatedFileKey = `${userId}-${key}`
-    if(clientId) {
-        generatedFileKey += `-${clientId}`
-    }
-    return generatedFileKey
-}
-
 async function getItem({ key, userId, clientId })  {
     try {
         let item
