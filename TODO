@@ -1,1 +1,3 @@
 fully abstract away the automerge implementation with your own api to be able to substitute it easily with another system
+
+use HTML5 Broadcast Channel API (https://developer.mozilla.org/en-US/docs/Web/API/Broadcast_Channel_API) to refresh to the latest data in the duplicate tabs / websockets for a client (client = browser), no need to create a sync request from the API - seems unnecessary wasteful and might cause a sync loop as it's the same client
