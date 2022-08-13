@@ -7,6 +7,8 @@ import {
 } from './db.js'
 import { serialize, deserialize } from 'bson'
 
+let clients = {}
+
 async function createSync(userId, ws) {
     const [updatedAutomergeSyncState, syncMessage] = Automerge.generateSyncMessage(
         await getAutomergeDocForUser(userId),
@@ -39,6 +41,12 @@ export async function websocketConnectionHandler(ws, decodedToken) {
             if(eventName === 'clientId') {
                 ws.clientId = payload
 
+                if(userId in clients === false) {
+                    clients[userId] = []
+                }
+
+                clients[userId].push(ws)
+
                 await createSync(userId, ws)
             }
 
@@ -53,6 +61,11 @@ export async function websocketConnectionHandler(ws, decodedToken) {
                 await saveAutomergeSyncStateForClient(userId, ws.clientId, updatedAutomergeSyncState)
 
                 await createSync(userId, ws)
+
+                const otherOnlineClientsOfUser = clients[userId].filter(client => client.clientId !== ws.clientId)
+                for(const otherClientWs of otherOnlineClientsOfUser)  {
+                    createSync(userId, otherClientWs)
+                }
             }
         } catch(e) {
             console.error('WebSocket: Invalid client message received', e.message, e.stack)
