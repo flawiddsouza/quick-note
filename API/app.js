@@ -7,6 +7,7 @@ import routes from './routes.js'
 import { validateToken } from './db.js'
 import cors from 'cors'
 import { websocketConnectionHandler } from './websocket.js'
+import { logger } from './logger.js'
 
 const app = express()
 
@@ -50,5 +51,5 @@ server.on('upgrade', (req, socket, head) => {
 })
 
 server.listen(6943, () => {
-    console.log('HTTP API at http://localhost:6943\nWebSocket Server at ws://localhost:6943\n')
+    logger.log('HTTP API at http://localhost:6943\nWebSocket Server at ws://localhost:6943\n')
 })

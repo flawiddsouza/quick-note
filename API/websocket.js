@@ -7,6 +7,7 @@ import {
     resetAutomergeSyncStateForClient
 } from './db.js'
 import { serialize, deserialize } from 'bson'
+import { logger } from './logger.js'
 
 let clients = {}
 let clientSyncTracker = {}
@@ -32,9 +33,9 @@ async function createSync(userId, ws) {
         }
         ws.send(serialize(send))
         clientSyncTracker[userId][ws.clientId].push(send)
-        console.log({ userId, clientId: ws.clientId }, 'sent', send)
+        logger.log({ userId, clientId: ws.clientId }, 'sent', send)
     } else {
-        console.log({ userId, clientId: ws.clientId }, 'nothing to sync')
+        logger.log({ userId, clientId: ws.clientId }, 'nothing to sync')
     }
 
     await saveAutomergeSyncStateForClient(userId, ws.clientId, updatedAutomergeSyncState)
@@ -47,7 +48,7 @@ export async function websocketConnectionHandler(ws, decodedToken) {
         try {
             const { eventName, payload } = deserialize(data, { promoteBuffers: true })
 
-            console.log({ userId, clientId: ws.clientId }, 'received', { eventName, payload })
+            logger.log({ userId, clientId: ws.clientId }, 'received', { eventName, payload })
 
             if(eventName === 'clientId') {
                 ws.clientId = payload
@@ -72,14 +73,14 @@ export async function websocketConnectionHandler(ws, decodedToken) {
                 await saveAutomergeSyncStateForClient(userId, ws.clientId, updatedAutomergeSyncState)
 
                 // this fixes the infinite sync loop bug - a temporary fix until I find the real problem but it will have to do
-                console.log(`clientSyncTracker[${userId}][${ws.clientId}].length`, clientSyncTracker[userId][ws.clientId].length)
+                logger.log(`clientSyncTracker[${userId}][${ws.clientId}].length`, clientSyncTracker[userId][ws.clientId].length)
                 if(clientSyncTracker[userId][ws.clientId].length >= 3) {
-                    console.log({ userId, clientId: ws.clientId }, clientSyncTracker[userId][ws.clientId])
+                    logger.log({ userId, clientId: ws.clientId }, clientSyncTracker[userId][ws.clientId])
                     if(JSON.stringify(clientSyncTracker[userId][ws.clientId][0]) === JSON.stringify(clientSyncTracker[userId][ws.clientId][2])) {
-                        console.log({ userId, clientId: ws.clientId }, 'duplicate sync detected for client')
+                        logger.log({ userId, clientId: ws.clientId }, 'duplicate sync detected for client')
                         await resetAutomergeSyncStateForClient(userId, ws.clientId)
                     } else {
-                        console.log({ userId, clientId: ws.clientId }, 'duplicate sync not detected')
+                        logger.log({ userId, clientId: ws.clientId }, 'duplicate sync not detected')
                     }
                     clientSyncTracker[userId][ws.clientId] = []
                 }

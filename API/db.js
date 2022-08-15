@@ -2,8 +2,8 @@ import sql from './sql.js'
 import bcrypt from 'bcrypt'
 import jwt from 'jsonwebtoken'
 import Automerge from 'automerge'
-import { promises as fs } from 'fs'
 import { serialize, deserialize } from 'bson'
+import { logger } from './logger.js'
 
 const saltRounds = 10
 
@@ -122,7 +122,7 @@ export async function getAutomergeDocForUser(userId) {
     if(savedAutomergeDoc) {
         automergeDocs[userId] = Automerge.load(savedAutomergeDoc)
 
-        console.log({ userId }, 'loaded savedAutomergeDoc')
+        logger.log({ userId }, 'loaded savedAutomergeDoc')
     } else {
         const schema = Automerge.change(Automerge.init({ actorId: '0000' }), { time: 0 }, doc => {
             doc.categories = []
@@ -135,7 +135,7 @@ export async function getAutomergeDocForUser(userId) {
 
         automergeDocs[userId] = initDoc
 
-        console.log({ userId }, 'unable to find savedAutomergeDoc, initialized automergeDoc')
+        logger.log({ userId }, 'unable to find savedAutomergeDoc, initialized automergeDoc')
     }
 
     return automergeDocs[userId]
@@ -145,7 +145,7 @@ export async function saveAutomergeDocForUser(userId, updatedAutomergeDoc) {
     await setItem({ key: 'automergeDoc', userId }, Automerge.save(updatedAutomergeDoc))
     automergeDocs[userId] = updatedAutomergeDoc
 
-    console.log({ userId }, 'saved automergeDoc')
+    logger.log({ userId }, 'saved automergeDoc')
 }
 
 export async function getAutomergeSyncStateForClient(userId, clientId) {
@@ -159,16 +159,16 @@ export async function getAutomergeSyncStateForClient(userId, clientId) {
         try {
             automergeSyncStates[userId][clientId] = deserialize(savedAutomergeSyncState, { promoteBuffers: true })
 
-            console.log({ userId, clientId }, 'loaded savedAutomergeSyncState')
+            logger.log({ userId, clientId }, 'loaded savedAutomergeSyncState')
         } catch(e) {
             automergeSyncStates[userId][clientId] = Automerge.initSyncState()
 
-            console.log({ userId, clientId }, 'getAutomergeSyncStateForClient failed when deserializing savedAutomergeSyncState', e.message)
+            logger.log({ userId, clientId }, 'getAutomergeSyncStateForClient failed when deserializing savedAutomergeSyncState', e.message)
         }
     } else {
         automergeSyncStates[userId][clientId] = Automerge.initSyncState()
 
-        console.log({ userId, clientId }, 'unable to find savedAutomergeSyncState, initialized automergeSyncState')
+        logger.log({ userId, clientId }, 'unable to find savedAutomergeSyncState, initialized automergeSyncState')
     }
 
     return automergeSyncStates[userId][clientId]
@@ -178,10 +178,10 @@ export async function saveAutomergeSyncStateForClient(userId, clientId, updatedA
     await setItem({ key: 'automergeSyncState', userId, clientId }, serialize(updatedAutomergeSyncState))
     automergeSyncStates[userId][clientId] = updatedAutomergeSyncState
 
-    console.log({ userId, clientId }, 'saved automergeSyncState')
+    logger.log({ userId, clientId }, 'saved automergeSyncState')
 }
 
 export async function resetAutomergeSyncStateForClient(userId, clientId) {
     await removeItem({ key: 'automergeSyncState', userId, clientId })
-    console.log({ userId, clientId }, 'reset automergeSyncState')
+    logger.log({ userId, clientId }, 'reset automergeSyncState')
 }
