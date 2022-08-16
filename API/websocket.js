@@ -8,6 +8,7 @@ import {
 } from './db.js'
 import { serialize, deserialize } from 'bson'
 import { logger } from './logger.js'
+import { randomUUID } from 'crypto'
 
 let clients = {}
 let clientSyncTracker = {}
@@ -33,22 +34,25 @@ async function createSync(userId, ws) {
         }
         ws.send(serialize(send))
         clientSyncTracker[userId][ws.clientId].push(send)
-        logger.log({ userId, clientId: ws.clientId }, 'sent', send)
+        logger.log({ userId, clientId: ws.clientId, wsId: ws.id }, 'sent', send)
     } else {
-        logger.log({ userId, clientId: ws.clientId }, 'nothing to sync')
+        logger.log({ userId, clientId: ws.clientId, wsId: ws.id }, 'nothing to sync')
     }
 
     await saveAutomergeSyncStateForClient(userId, ws.clientId, updatedAutomergeSyncState)
 }
 
 export async function websocketConnectionHandler(ws, decodedToken) {
+    ws.id = randomUUID()
     const userId = decodedToken.userId
+
+    logger.log({ userId, wsId: ws.id }, 'client connected')
 
     ws.on('message', async(data) => {
         try {
             const { eventName, payload } = deserialize(data, { promoteBuffers: true })
 
-            logger.log({ userId, clientId: ws.clientId }, 'received', { eventName, payload })
+            logger.log({ userId, clientId: ws.clientId, wsId: ws.id }, 'received', { eventName, payload })
 
             if(eventName === 'clientId') {
                 ws.clientId = payload
@@ -75,12 +79,12 @@ export async function websocketConnectionHandler(ws, decodedToken) {
                 // this fixes the infinite sync loop bug - a temporary fix until I find the real problem but it will have to do
                 logger.log(`clientSyncTracker[${userId}][${ws.clientId}].length`, clientSyncTracker[userId][ws.clientId].length)
                 if(clientSyncTracker[userId][ws.clientId].length >= 3) {
-                    logger.log({ userId, clientId: ws.clientId }, clientSyncTracker[userId][ws.clientId])
+                    logger.log({ userId, clientId: ws.clientId, wsId: ws.id }, clientSyncTracker[userId][ws.clientId])
                     if(JSON.stringify(clientSyncTracker[userId][ws.clientId][0]) === JSON.stringify(clientSyncTracker[userId][ws.clientId][2])) {
-                        logger.log({ userId, clientId: ws.clientId }, 'duplicate sync detected for client')
+                        logger.log({ userId, clientId: ws.clientId, wsId: ws.id }, 'duplicate sync detected for client')
                         await resetAutomergeSyncStateForClient(userId, ws.clientId)
                     } else {
-                        logger.log({ userId, clientId: ws.clientId }, 'duplicate sync not detected')
+                        logger.log({ userId, clientId: ws.clientId, wsId: ws.id }, 'duplicate sync not detected')
                     }
                     clientSyncTracker[userId][ws.clientId] = []
                 }
@@ -89,12 +93,18 @@ export async function websocketConnectionHandler(ws, decodedToken) {
 
                 const otherOnlineClientsOfUser = clients[userId].filter(client => client.clientId !== ws.clientId)
                 for(const otherClientWs of otherOnlineClientsOfUser)  {
-                    logger.log({ userId, clientId: otherClientWs.clientId }, 'creating sync for other connect client', { wsReadState: ws.readyState })
+                    logger.log({ userId, clientId: otherClientWs.clientId, wsId: otherClientWs.id }, 'creating sync for other connected client')
                     createSync(userId, otherClientWs)
                 }
             }
         } catch(e) {
             console.error('WebSocket: Invalid client message received', e.message, e.stack)
         }
+    })
+
+    ws.on('close', () => {
+        logger.log({ userId, clientId: ws.clientId, wsId: ws.id }, 'client disconnected')
+        const wsIndex = clients[userId].findIndex(wsEntry => wsEntry.id === ws.id)
+        clients[userId].splice(wsIndex, 1)
     })
 }
