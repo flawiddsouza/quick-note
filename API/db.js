@@ -117,6 +117,11 @@ let automergeDocs = {}
 let automergeSyncStates = {}
 
 export async function getAutomergeDocForUser(userId) {
+    if(userId in automergeDocs) {
+        logger.log({ userId }, 'loaded savedAutomergeDoc from memory')
+        return automergeDocs[userId]
+    }
+
     const savedAutomergeDoc = await getItem({ key: 'automergeDoc', userId })
 
     if(savedAutomergeDoc) {
@@ -153,6 +158,12 @@ export async function getAutomergeSyncStateForClient(userId, clientId) {
         automergeSyncStates[userId] = {}
     }
 
+    if(clientId in automergeSyncStates[userId]) {
+        logger.log({ userId, clientId }, 'loaded savedAutomergeSyncState from memory')
+
+        return automergeSyncStates[userId][clientId]
+    }
+
     const savedAutomergeSyncState = await getItem({ key: 'automergeSyncState', userId, clientId })
 
     if(savedAutomergeSyncState) {
@@ -183,5 +194,7 @@ export async function saveAutomergeSyncStateForClient(userId, clientId, updatedA
 
 export async function resetAutomergeSyncStateForClient(userId, clientId) {
     await removeItem({ key: 'automergeSyncState', userId, clientId })
+    delete automergeSyncStates[userId][clientId]
+
     logger.log({ userId, clientId }, 'reset automergeSyncState')
 }
