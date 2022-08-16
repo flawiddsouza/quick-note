@@ -89,6 +89,7 @@ export async function websocketConnectionHandler(ws, decodedToken) {
 
                 const otherOnlineClientsOfUser = clients[userId].filter(client => client.clientId !== ws.clientId)
                 for(const otherClientWs of otherOnlineClientsOfUser)  {
+                    logger.log({ userId, clientId: otherClientWs.clientId }, 'creating sync for other connect client', { wsReadState: ws.readyState })
                     createSync(userId, otherClientWs)
                 }
             }
