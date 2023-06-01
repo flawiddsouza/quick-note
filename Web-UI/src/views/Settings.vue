@@ -185,6 +185,14 @@ function goBack() {
     history.back()
 }
 
+function exportAllNotesAsJSON() {
+    const data = JSON.stringify(store.notes)
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(new Blob([data], { type: 'application/json' }))
+    a.download = 'quick-note-backup.json'
+    a.click()
+}
+
 watch(settings, () => {
     if(store.skipSettingsUpdate) {
         return
@@ -324,6 +332,16 @@ onMounted(async() => {
                                 <button>Import Writer Backup</button>
                             </div>
                         </form>
+                    </div>
+                </div>
+                <div style="border-top: 1px solid var(--primary-border-color)"></div>
+                <div style="padding: 1rem;">
+                    <div style="font-weight: 500">Export Data</div>
+                    <div style="font-size: var(--secondary-font-size)">
+                        <div style="margin-top: 1rem;">Keep a copy of your data as JSON.</div>
+                        <div style="margin-top: 1rem">
+                            <button @click="exportAllNotesAsJSON">Export All Notes as JSON</button>
+                        </div>
                     </div>
                 </div>
             </div>
