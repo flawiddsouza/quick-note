@@ -4,17 +4,24 @@ import * as Automerge from 'automerge'
 import { nanoid } from 'nanoid'
 import PersistentWebSocket from 'pws'
 import { serialize, deserialize } from 'bson'
+import WebWorker from './worker?worker'
 
 let automergeDoc = null
 let automergeSyncState = null
 let websocket = null
+const webWorker = new WebWorker()
 
 function createSync() {
-    const [updatedAutomergeSyncState, syncMessage] = Automerge.generateSyncMessage(
-        automergeDoc,
-        automergeSyncState
-    )
+    webWorker.postMessage({
+        name: 'generateSyncMessage',
+        data: {
+            automergeDoc: Automerge.save(automergeDoc),
+            automergeSyncState
+        }
+    })
+}
 
+function createSyncComplete(updatedAutomergeSyncState, syncMessage) {
     if(syncMessage !== null) {
         const send = {
             eventName: 'syncMessage',
@@ -28,6 +35,13 @@ function createSync() {
 
     saveAutomergeSyncState(updatedAutomergeSyncState)
 }
+
+webWorker.addEventListener('message', (event) => {
+    const eventData = event.data
+    if(eventData.name === 'generateSyncMessage') {
+        createSyncComplete(eventData.data.updatedAutomergeSyncState, eventData.data.syncMessage)
+    }
+})
 
 function saveAutomergeDoc(updatedAutomergeDoc) {
     automergeDoc = updatedAutomergeDoc
