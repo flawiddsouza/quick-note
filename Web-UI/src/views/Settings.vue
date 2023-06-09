@@ -186,7 +186,7 @@ function goBack() {
 }
 
 function exportAllNotesAsJSON() {
-    const data = JSON.stringify(store.notes)
+    const data = JSON.stringify({ categories: store.categories, notes: store.notes }, null, 4)
     const a = document.createElement('a')
     a.href = URL.createObjectURL(new Blob([data], { type: 'application/json' }))
     a.download = 'quick-note-backup.json'
