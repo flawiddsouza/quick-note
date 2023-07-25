@@ -82,6 +82,7 @@ textarea {
     border: 0;
     padding-left: 1rem;
     padding-right: 1rem;
+    padding-bottom: 3rem;
     margin-top: 1rem;
     margin-bottom: 1rem;
     resize: none;
