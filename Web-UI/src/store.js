@@ -296,22 +296,25 @@ export const useStore = defineStore('store', {
 
             saveAutomergeDoc(updatedAutomergeDoc)
         },
-        async updateNote(existingNote, title, content) {
+        async updateNote(originalNote, title, content) {
+            const noteId = originalNote.id
+
             if(title === '' && content === '') {
-                await this.deleteNote(existingNote.id)
+                await this.deleteNote(noteId)
                 return
             }
 
-            if(existingNote.title !== title || existingNote.content !== content) {
-                existingNote.title = title
-                existingNote.content = content
-                existingNote.modified = new Date().toISOString()
+            if(originalNote.title !== title || originalNote.content !== content) {
+                const note = this.notes.find(note => note.id === noteId)
+                note.title = title
+                note.content = content
+                note.modified = new Date().toISOString()
 
                 const updatedAutomergeDoc = Automerge.change(automergeDoc, automergeDocChange => {
-                    const noteToUpdateInAutomerge = automergeDocChange.notes.find(note => note.id === existingNote.id)
-                    noteToUpdateInAutomerge.title = existingNote.title
-                    noteToUpdateInAutomerge.content = existingNote.content
-                    noteToUpdateInAutomerge.modified = existingNote.modified
+                    const noteToUpdateInAutomerge = automergeDocChange.notes.find(note => note.id === noteId)
+                    noteToUpdateInAutomerge.title = note.title
+                    noteToUpdateInAutomerge.content = note.content
+                    noteToUpdateInAutomerge.modified = note.modified
                 })
 
                 saveAutomergeDoc(updatedAutomergeDoc)
