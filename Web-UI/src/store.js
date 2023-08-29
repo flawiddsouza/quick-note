@@ -37,8 +37,12 @@ function createSyncComplete(updatedAutomergeSyncState, syncMessage) {
 }
 
 let loadNotesAndCategories = null
+let receiveSyncActive = false
+let receiveSyncQueue = []
 
 function receiveSync(payload) {
+    receiveSyncActive = true
+
     webWorker.postMessage({
         name: 'receiveSync',
         data: {
@@ -53,6 +57,12 @@ function receiveSyncComplete(updatedAutomergeSyncState, updatedAutomergeDoc) {
     saveAutomergeSyncState(updatedAutomergeSyncState)
     saveAutomergeDoc(updatedAutomergeDoc)
     loadNotesAndCategories()
+    if(receiveSyncQueue.length > 0) {
+        const { payload } = receiveSyncQueue.shift()
+        receiveSync(payload)
+    } else {
+        receiveSyncActive = false
+    }
 }
 
 webWorker.addEventListener('message', (event) => {
@@ -225,7 +235,11 @@ export const useStore = defineStore('store', {
 
                     if(eventName === 'syncMessage') {
                         loadNotesAndCategories = this.loadNotesAndCategories
-                        receiveSync(payload)
+                        if(!receiveSyncActive) {
+                            receiveSync(payload)
+                        } else {
+                            receiveSyncQueue.push({ payload })
+                        }
                     }
                 } catch(e) {
                     console.error('WebSocket: Invalid client message received', e)
