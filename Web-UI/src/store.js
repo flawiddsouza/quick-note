@@ -36,10 +36,32 @@ function createSyncComplete(updatedAutomergeSyncState, syncMessage) {
     saveAutomergeSyncState(updatedAutomergeSyncState)
 }
 
+let loadNotesAndCategories = null
+
+function receiveSync(payload) {
+    webWorker.postMessage({
+        name: 'receiveSync',
+        data: {
+            automergeDoc: Automerge.save(automergeDoc),
+            automergeSyncState,
+            payload
+        }
+    })
+}
+
+function receiveSyncComplete(updatedAutomergeSyncState, updatedAutomergeDoc) {
+    saveAutomergeSyncState(updatedAutomergeSyncState)
+    saveAutomergeDoc(updatedAutomergeDoc)
+    loadNotesAndCategories()
+}
+
 webWorker.addEventListener('message', (event) => {
     const eventData = event.data
     if(eventData.name === 'generateSyncMessage') {
         createSyncComplete(eventData.data.updatedAutomergeSyncState, eventData.data.syncMessage)
+    }
+    if(eventData.name === 'receiveSyncComplete') {
+        receiveSyncComplete(eventData.data.updatedAutomergeSyncState, Automerge.load(eventData.data.updatedAutomergeDoc))
     }
 })
 
@@ -199,16 +221,8 @@ export const useStore = defineStore('store', {
                     console.log('received', { eventName, payload })
 
                     if(eventName === 'syncMessage') {
-                        const [updatedAutomergeDoc, updatedAutomergeSyncState] = Automerge.receiveSyncMessage(
-                            automergeDoc,
-                            automergeSyncState,
-                            payload
-                        )
-
-                        saveAutomergeSyncState(updatedAutomergeSyncState)
-                        saveAutomergeDoc(updatedAutomergeDoc)
-
-                        this.loadNotesAndCategories()
+                        loadNotesAndCategories = this.loadNotesAndCategories
+                        receiveSync(payload)
                     }
                 } catch(e) {
                     console.error('WebSocket: Invalid client message received', e)

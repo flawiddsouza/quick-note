@@ -15,10 +15,31 @@ function generateSyncMessage(data) {
     }
 }
 
+function receiveSync(data) {
+    const [updatedAutomergeDoc, updatedAutomergeSyncState] = Automerge.receiveSyncMessage(
+        Automerge.load(data.automergeDoc),
+        data.automergeSyncState,
+        data.payload
+    )
+
+    return {
+        name: 'receiveSyncComplete',
+        data: {
+            updatedAutomergeSyncState,
+            updatedAutomergeDoc: Automerge.save(updatedAutomergeDoc)
+        }
+    }
+}
+
 self.addEventListener('message', (event) => {
     const eventData = event.data
     if(eventData.name === 'generateSyncMessage') {
         const result = generateSyncMessage(eventData.data)
+        self.postMessage(result)
+    }
+
+    if(eventData.name === 'receiveSync') {
+        const result = receiveSync(eventData.data)
         self.postMessage(result)
     }
 })
