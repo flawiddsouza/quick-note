@@ -124,7 +124,8 @@ export const useStore = defineStore('store', {
             },
             skipSettingsUpdate: true,
             token: null,
-            clientId: null
+            clientId: null,
+            connectionStatus: 'Connecting'
         }
     },
     getters: {
@@ -207,6 +208,8 @@ export const useStore = defineStore('store', {
             ws.onopen = () => {
                 console.log('connected to websocket')
 
+                this.connectionStatus = 'Connected'
+
                 ws.send(serialize({ eventName: 'clientId', payload: this.clientId }))
 
                 websocket = ws
@@ -231,6 +234,7 @@ export const useStore = defineStore('store', {
 
             ws.onclose = () => {
                 console.log('websocket closed')
+                this.connectionStatus = 'Disconnected'
             }
         },
         async addCategory(name, fieldOverrides={}) {

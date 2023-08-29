@@ -52,8 +52,9 @@ function openSettings() {
                     </div>
                     <input type="text" spellcheck="false" v-model="store.search" v-focus v-else>
                 </div>
-                <div style="white-space: nowrap">
-                    <button class="app-bar-action-button" title="Search" v-if="search === false" @click="search = true" >
+                <div style="display: flex; align-items: center; white-space: nowrap;">
+                    <div :style="{ 'font-size': '0.9rem', 'visibility': store.token && search === false ? 'visible' : 'hidden' }">{{ store.connectionStatus }}</div>
+                    <button class="app-bar-action-button" title="Search" v-if="search === false" @click="search = true" style="margin-left: 1rem">
                         <img src="/icons/ic_menu_search.png">
                     </button>
                     <button class="app-bar-action-button" title="Search" style="margin-left: 1rem" v-else @click="search = false; store.search = ''">
