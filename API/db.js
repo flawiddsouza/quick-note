@@ -147,8 +147,10 @@ export async function getAutomergeDocForUser(userId) {
 }
 
 export async function saveAutomergeDocForUser(userId, updatedAutomergeDoc) {
-    await setItem({ key: 'automergeDoc', userId }, Automerge.save(updatedAutomergeDoc))
+    // update memory before awaiting the db write, so a message from another client of the
+    // same user that arrives during the write does not build on the old document
     automergeDocs[userId] = updatedAutomergeDoc
+    await setItem({ key: 'automergeDoc', userId }, Automerge.save(updatedAutomergeDoc))
 
     logger.log({ userId }, 'saved automergeDoc')
 }
@@ -186,8 +188,8 @@ export async function getAutomergeSyncStateForClient(userId, clientId) {
 }
 
 export async function saveAutomergeSyncStateForClient(userId, clientId, updatedAutomergeSyncState) {
-    await setItem({ key: 'automergeSyncState', userId, clientId }, serialize(updatedAutomergeSyncState))
     automergeSyncStates[userId][clientId] = updatedAutomergeSyncState
+    await setItem({ key: 'automergeSyncState', userId, clientId }, serialize(updatedAutomergeSyncState))
 
     logger.log({ userId, clientId }, 'saved automergeSyncState')
 }

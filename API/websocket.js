@@ -12,6 +12,16 @@ import { randomUUID } from 'crypto'
 
 let clients = {}
 let clientSyncTracker = {}
+let userMessageQueues = {}
+
+// messages from all clients of a user are handled one after the other, so two clients
+// syncing at the same time can't both build on the same document and overwrite each other
+function queueForUser(userId, task) {
+    const previous = userMessageQueues[userId] ?? Promise.resolve()
+    const next = previous.then(task)
+    userMessageQueues[userId] = next.catch(() => {})
+    return next
+}
 
 async function createSync(userId, ws) {
     if(userId in clientSyncTracker === false) {
@@ -48,7 +58,7 @@ export async function websocketConnectionHandler(ws, decodedToken) {
 
     logger.log({ userId, wsId: ws.id }, 'client connected')
 
-    ws.on('message', async(data) => {
+    ws.on('message', (data) => queueForUser(userId, async() => {
         try {
             const { eventName, payload } = deserialize(data, { promoteBuffers: true })
 
@@ -94,13 +104,13 @@ export async function websocketConnectionHandler(ws, decodedToken) {
                 const otherOnlineClientsOfUser = clients[userId].filter(client => client.clientId !== ws.clientId)
                 for(const otherClientWs of otherOnlineClientsOfUser)  {
                     logger.log({ userId, clientId: otherClientWs.clientId, wsId: otherClientWs.id }, 'creating sync for other connected client')
-                    createSync(userId, otherClientWs)
+                    await createSync(userId, otherClientWs)
                 }
             }
         } catch(e) {
             console.error('WebSocket: Invalid client message received', e.message, e.stack)
         }
-    })
+    }))
 
     ws.on('close', () => {
         logger.log({ userId, clientId: ws.clientId, wsId: ws.id }, 'client disconnected')
