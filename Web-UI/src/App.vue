@@ -3,7 +3,7 @@ import { useStore } from './store'
 import Home from './views/Home.vue'
 import Note from './views/Note.vue'
 import Settings from './views/Settings.vue'
-import ReloadPrompt from './components/ReloadPrompt.vue'
+import AutoUpdate from './components/AutoUpdate.vue'
 import { storeToRefs } from 'pinia'
 import { watch, onMounted } from 'vue'
 
@@ -27,7 +27,7 @@ window.addEventListener('popstate', async(event) => {
 
 watch(token, () => {
     if(token.value) {
-        store.connectToWebSocket()
+        store.connect()
     }
 })
 
@@ -51,5 +51,5 @@ onMounted(() => {
     <Home v-show="store.currentView === 'Home'" />
     <Note v-show="store.currentView === 'Note'" />
     <Settings v-show="store.currentView === 'Settings'" />
-    <ReloadPrompt />
+    <AutoUpdate />
 </template>

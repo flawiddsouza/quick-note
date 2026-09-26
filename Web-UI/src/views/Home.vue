@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { useStore } from '../store'
 import Frame from '../components/Frame.vue'
 import NotesList from '../components/NotesList.vue'
@@ -16,6 +16,13 @@ const vFocus = {
         element.focus()
     }
 }
+
+// a search looks inside the notes, which are read from the database the first time
+watch(() => store.search, value => {
+    if(value !== '') {
+        store.loadContents()
+    }
+})
 
 function startAddCategory() {
     newCategoryName.value = ''

@@ -1,79 +1,26 @@
 import { defineStore } from 'pinia'
 import { getItem, setItem, deleteItem } from './db'
 import { nanoid } from 'nanoid'
-import PersistentWebSocket from 'pws'
-import { serialize, deserialize } from 'bson'
-import WebWorker from './worker?worker'
+import * as sync from './sync'
+import * as account from './account'
 
-// the automerge document lives in the worker, see worker.js
-const webWorker = new WebWorker()
-let websocket = null
-let applyState = null
-let pendingRequests = {}
+const apiUrl = import.meta.env.QUICK_NOTE_API_URL
+const websocketUrl = import.meta.env.QUICK_NOTE_WEBSOCKET_URL
 
-function workerPost(name, data) {
-    webWorker.postMessage({ name, data })
-}
+let loginRetry = null
+let loginRetryDelay = 5000
+let loginInFlight = null
 
-// like workerPost, but resolves once the worker has finished handling the message
-function workerRequest(name, data) {
-    return new Promise(resolve => {
-        const requestId = nanoid()
-        pendingRequests[requestId] = resolve
-        webWorker.postMessage({ name, data, requestId })
-    })
-}
-
-webWorker.addEventListener('message', (event) => {
-    const { name, data, requestId } = event.data
-
-    if(name === 'state') {
-        applyState(data)
-    }
-
-    if(name === 'send') {
-        if(websocket && websocket.readyState === websocket.OPEN) {
-            const send = {
-                eventName: 'syncMessage',
-                payload: data
-            }
-            websocket.send(serialize(send))
-            console.log('sent', send)
-        }
-    }
-
-    if(name === 'done') {
-        pendingRequests[requestId]()
-        delete pendingRequests[requestId]
-    }
+// password is kept for an account without encryption; an encrypted account keeps keyCache
+// instead, the stretched password and its salt, and the password itself is never stored
+const defaultSettings = () => ({
+    privacyModeEnabled: false,
+    privacyModePercent: 50,
+    email: '',
+    password: '',
+    encrypted: false,
+    keyCache: null
 })
-
-async function getToken(email, password) {
-    let response
-
-    try {
-        response = await fetch(`${import.meta.env.QUICK_NOTE_API_URL}/login`, {
-            method: 'POST',
-            body: JSON.stringify({
-                email,
-                password
-            }),
-            headers: {
-                'Content-Type': 'application/json'
-            }
-        })
-    } catch(e) {
-        throw new Error('Unable to reach server')
-    }
-
-    if(response.status === 400) {
-        throw new Error(await response.text())
-    }
-
-    const responseData = await response.json()
-
-    return responseData.token
-}
 
 export const useStore = defineStore('store', {
     state: () => {
@@ -86,16 +33,12 @@ export const useStore = defineStore('store', {
             noteCopy: { title: '', content: '' },
             drawerOpen: false,
             currentView: 'Home',
-            settings: {
-                privacyModeEnabled: false,
-                privacyModePercent: 50,
-                email: '',
-                password: ''
-            },
+            settings: defaultSettings(),
             skipSettingsUpdate: true,
             token: null,
-            clientId: null,
-            connectionStatus: 'Connecting'
+            dataKey: null,
+            connectionStatus: 'Connecting',
+            contentsVersion: 0
         }
     },
     getters: {
@@ -105,8 +48,10 @@ export const useStore = defineStore('store', {
             let notes = this.notes.filter(note => note.categoryId === this.currentCategoryId)
 
             if(searchString !== '') {
+                // the note texts are read from the database on the first search, see loadContents
+                this.contentsVersion
                 notes = notes.filter(note => {
-                    return note.title.toLowerCase().includes(searchString) || note.content.toLowerCase().includes(searchString)
+                    return note.title.toLowerCase().includes(searchString) || (sync.contentOf(note.id) ?? note.snippet).toLowerCase().includes(searchString)
                 })
             }
 
@@ -114,98 +59,153 @@ export const useStore = defineStore('store', {
         }
     },
     actions: {
-        async loadNotesAndCategories({ categories, notes }) {
-            this.categories = categories
-
-            this.categories.unshift({ id: null, name: 'Main' })
-
+        // called by sync whenever the rows change, locally or from another device or tab
+        applyRows({ categories, notes }) {
+            this.categories = [{ id: null, name: 'Main' }, ...categories]
             this.notes = notes
+            this.contentsVersion++
         },
         // should be run only once when the app is first loaded
         async loadDB() {
-            this.settings = await getItem('settings') ?? {
-                privacyModeEnabled: false,
-                privacyModePercent: 50,
-                email: '',
-                password: ''
+            this.settings = { ...defaultSettings(), ...(await getItem('settings') ?? {}) }
+            account.configure(apiUrl)
+
+            try {
+                await sync.start({
+                    onChange: rows => this.applyRows(rows),
+                    onConnection: connected => { this.connectionStatus = connected ? 'Connected' : 'Disconnected' },
+                    onLocked: () => this.login(),
+                    onSyncFailed: error => {
+                        this.connectionStatus = 'Sync failed'
+                        if(error.status === 401) {
+                            this.login()
+                        }
+                    }
+                })
+            } catch(e) {
+                console.error('Could not open notes', e)
+                alert('Could not open your notes. Please reload the app.')
+                return
             }
-
-            applyState = state => this.loadNotesAndCategories(state)
-
-            await workerRequest('init')
 
             // to avoid unncessary db write when settings are loaded from the db for the first time
             this.skipSettingsUpdate = false
 
-            this.clientId = await getItem('clientId')
-
-            if(this.clientId === undefined) {
-                this.clientId = nanoid()
-                await setItem('clientId', this.clientId)
-            }
-
             if(this.settings.email !== '') {
-                this.token = await getToken(this.settings.email, this.settings.password)
+                await this.login()
             }
+        },
+        // Logs in with what settings hold and starts syncing; also how a device gets the data
+        // key once the account was encrypted from another device, and how a token past its
+        // 30 days is replaced. A server that cannot be reached is tried again, slower each time.
+        login() {
+            if(this.settings.email === '') {
+                return Promise.resolve()
+            }
+            // one login at a time, whoever asks; a failure is handled inside, never thrown
+            loginInFlight ??= this.tryLogin().finally(() => { loginInFlight = null })
+            return loginInFlight
+        },
+        async tryLogin() {
+            this.connectionStatus = 'Connecting'
+            clearTimeout(loginRetry)
+            let result
+
+            try {
+                result = await account.login({ email: this.settings.email, password: this.settings.password, keyCache: this.settings.keyCache })
+            } catch(e) {
+                if(e.status === 400) {
+                    // the password or the account changed elsewhere
+                    await this.logout()
+                    alert(`Login failed: ${e.message}. Please log in again.`)
+                } else {
+                    this.connectionStatus = 'Disconnected'
+                    loginRetry = setTimeout(() => this.login(), loginRetryDelay)
+                    loginRetryDelay = Math.min(loginRetryDelay * 2, 60000)
+                }
+                return
+            }
+
+            loginRetryDelay = 5000
+            this.useLogin(result)
+        },
+        useLogin({ token, encrypted, dataKey, keyCache }) {
+            this.settings.encrypted = encrypted
+            this.settings.keyCache = keyCache
+            if(encrypted) {
+                this.settings.password = ''
+            }
+            this.dataKey = dataKey
+            this.token = token
         },
         // called whenever store.token changes, watch handler in App.vue
-        async connectToWebSocket() {
-            const ws = new PersistentWebSocket(`${import.meta.env.QUICK_NOTE_WEBSOCKET_URL}?token=${this.token}`)
-
-            ws.onopen = () => {
-                console.log('connected to websocket')
-
-                this.connectionStatus = 'Connected'
-
-                ws.send(serialize({ eventName: 'clientId', payload: this.clientId }))
-
-                websocket = ws
-
-                workerPost('online', true)
-            }
-
-            ws.onmessage = async event => {
-                try {
-                    const { eventName, payload } = deserialize(await event.data.arrayBuffer(), { promoteBuffers: true })
-
-                    console.log('received', { eventName, payload })
-
-                    if(eventName === 'syncMessage') {
-                        workerPost('receiveSync', payload)
-                    }
-                } catch(e) {
-                    console.error('WebSocket: Invalid client message received', e)
-                }
-            }
-
-            ws.onclose = () => {
-                console.log('websocket closed')
-                this.connectionStatus = 'Disconnected'
-                // a socket replaced by a newer one (re-login) must not take the worker offline
-                if(websocket === ws) {
-                    workerPost('online', false)
-                }
+        async connect() {
+            await sync.attach(this.settings.email)
+            sync.setSession({ apiUrl, token: this.token, dataKey: this.dataKey })
+            sync.connect(`${websocketUrl}?token=${this.token}`)
+        },
+        async signIn(email, password) {
+            const result = await account.login({ email, password })
+            this.settings.email = email
+            this.settings.password = password
+            this.useLogin(result)
+        },
+        // returns the recovery phrase, to be shown once
+        async register(email, password) {
+            const result = await account.register({ email, password })
+            this.settings.email = email
+            this.useLogin(result)
+            return result.phrase
+        },
+        // turns an account without encryption on to it; returns the recovery phrase
+        async encryptAccount() {
+            const { password, encryption, dataKey, keyCache, phrase } = await account.encryptionFor(this.settings.password)
+            await sync.encryptAccount({ password, encryption, dataKey })
+            this.useLogin({ token: this.token, encrypted: true, dataKey, keyCache })
+            return phrase
+        },
+        async changePassword(currentPassword, newPassword) {
+            const { keyCache } = await account.changePassword({
+                token: this.token,
+                encrypted: this.settings.encrypted,
+                keyCache: this.settings.keyCache,
+                dataKey: this.dataKey,
+                currentPassword,
+                newPassword
+            })
+            this.settings.keyCache = keyCache
+            if(!this.settings.encrypted) {
+                this.settings.password = newPassword
             }
         },
+        async resetPassword(email, phrase, newPassword) {
+            await account.resetPassword({ email, phrase, newPassword })
+            await this.signIn(email, newPassword)
+        },
+        async newRecoveryPhrase() {
+            return account.newRecoveryPhrase({ token: this.token, dataKey: this.dataKey })
+        },
+        async openNote(note) {
+            this.note = { ...note, content: await sync.getContent(note.id) }
+        },
+        async loadContents() {
+            await sync.loadContents()
+            this.contentsVersion++
+        },
         async addCategory(name, fieldOverrides={}) {
-            const category = {
+            sync.saveCategory({
                 id: 'id' in fieldOverrides ? fieldOverrides.id : nanoid(),
                 name,
                 created: 'created' in fieldOverrides ? fieldOverrides.created : new Date().toISOString(),
                 modified: 'modified' in fieldOverrides ? fieldOverrides.modified : new Date().toISOString()
-            }
-
-            this.categories.push(category)
-
-            workerPost('addCategory', category)
+            })
         },
         async updateCategory(existingCategory, name) {
-            if(existingCategory.name !== name) {
-                existingCategory.name = name
-                existingCategory.modified = new Date().toISOString()
-
-                workerPost('updateCategory', JSON.parse(JSON.stringify(existingCategory)))
+            if(existingCategory.name === name) {
+                return
             }
+
+            sync.saveCategory({ ...existingCategory, name, modified: new Date().toISOString() })
         },
         async deleteCategory(id) {
             // switch current category to Main if the category being deleted is the active one
@@ -213,69 +213,46 @@ export const useStore = defineStore('store', {
                 this.currentCategoryId = null
             }
 
-            // delete all notes matching category before deleting category
-            for(const note of this.notes.filter(note => note.categoryId === id)) {
-                await this.deleteNote(note.id)
-            }
-
-            const index = this.categories.findIndex(category => category.id === id)
-
-            if(index !== -1) {
-                this.categories.splice(index, 1)
-            }
-
-            workerPost('deleteCategory', id)
+            sync.deleteCategory(id)
         },
         async addNote(title, content, fieldOverrides={}) {
             if(title === '' && content === '') {
                 return
             }
 
-            const note = {
+            sync.saveNote({
                 id: 'id' in fieldOverrides ? fieldOverrides.id : nanoid(),
                 categoryId: 'categoryId' in fieldOverrides ? fieldOverrides.categoryId : this.currentCategoryId,
                 title,
                 content,
                 created: 'created' in fieldOverrides ? fieldOverrides.created : new Date().toISOString(),
                 modified: 'modified' in fieldOverrides ? fieldOverrides.modified : new Date().toISOString()
-            }
-
-            this.notes.push(note)
-
-            workerPost('addNote', note)
+            })
         },
         async updateNote(originalNote, title, content) {
-            const noteId = originalNote.id
-
             if(title === '' && content === '') {
-                await this.deleteNote(noteId)
+                await this.deleteNote(originalNote.id)
                 return
             }
 
-            if(originalNote.title !== title || originalNote.content !== content) {
-                let note = this.notes.find(note => note.id === noteId)
-
-                if(!note) {
-                    // the note was removed from the list by a sync while it was being edited, keep the edit
-                    note = JSON.parse(JSON.stringify(originalNote))
-                    this.notes.push(note)
-                }
-
-                note.title = title
-                note.content = content
-                note.modified = new Date().toISOString()
-
-                workerPost('updateNote', JSON.parse(JSON.stringify(note)))
+            if(originalNote.title === title && originalNote.content === content) {
+                return
             }
+
+            sync.saveNote({ ...originalNote, title, content, modified: new Date().toISOString() })
         },
         async deleteNote(id) {
-            const index = this.notes.findIndex(note => note.id === id)
+            sync.deleteNote(id)
+        },
+        // adds many at once, skipping ids already present, in a single write
+        async addAll({ categories = [], notes = [] }) {
+            const knownCategories = new Set(this.categories.map(category => category.id))
+            const knownNotes = new Set(this.notes.map(note => note.id))
 
-            if(index !== -1) {
-                this.notes.splice(index, 1)
-            }
-
-            workerPost('deleteNote', id)
+            sync.save({
+                categories: categories.filter(category => !knownCategories.has(category.id)),
+                notes: notes.filter(note => !knownNotes.has(note.id))
+            })
         },
         async goBack() {
             if(this.note.id) {
@@ -289,33 +266,23 @@ export const useStore = defineStore('store', {
             await setItem('settings', JSON.parse(JSON.stringify(this.settings)))
         },
         async logout() {
-            // destroy websocket
-            if(websocket) {
-                websocket.close()
-                websocket = null
-            }
-            // clear credentials
+            clearTimeout(loginRetry)
+            sync.disconnect()
+            sync.setSession(null)
             this.settings.email = ''
             this.settings.password = ''
+            this.settings.encrypted = false
+            this.settings.keyCache = null
             this.token = null
-            // reset sync state
-            workerPost('online', false)
-            workerPost('resetSyncState')
-            // reset client id
-            this.clientId = nanoid()
-            setItem('clientId', this.clientId)
+            this.dataKey = null
         },
         async resetApplication() {
-            // destroy websocket
-            if(websocket) {
-                websocket.close()
-                websocket = null
-            }
+            clearTimeout(loginRetry)
+            this.token = null
+            this.dataKey = null
             await deleteItem('settings')
-            await deleteItem('clientId')
-            workerPost('online', false)
-            await workerRequest('reset')
-            await this.loadDB()
+            await sync.reset()
+            this.settings = defaultSettings()
         }
     }
 })

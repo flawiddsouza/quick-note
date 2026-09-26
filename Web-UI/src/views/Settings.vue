@@ -1,11 +1,10 @@
 <script setup>
-import { onMounted, ref, watch } from 'vue'
+import { ref, watch } from 'vue'
 import { useStore } from '../store'
+import * as sync from '../sync'
 import Frame from '../components/Frame.vue'
+import Modal from '../components/Modal.vue'
 import { storeToRefs } from 'pinia'
-import initSqlJs from 'sql.js'
-
-let SQL = null
 
 const store = useStore()
 const { settings } = storeToRefs(store)
@@ -19,98 +18,95 @@ const registrationForm = ref({
     password: '',
     confirmPassword: ''
 })
+const resetForm = ref({
+    email: '',
+    phrase: '',
+    password: '',
+    confirmPassword: ''
+})
+const passwordForm = ref({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+})
+const showPasswordForm = ref(false)
 const formError = ref('')
 const formProcessing = ref(false)
 
-async function login() {
+// the recovery phrase is shown once, right after it is made
+const phrase = ref('')
+const phraseSaved = ref(false)
+
+// runs a form's request, keeping the error and the busy state in one place
+async function submit(task) {
     formProcessing.value = true
-
-    formError.value = null
-
-    let response
+    formError.value = ''
 
     try {
-        response = await fetch(`${import.meta.env.QUICK_NOTE_API_URL}/login`, {
-            method: 'POST',
-            body: JSON.stringify(loginForm.value),
-            headers: {
-                'Content-Type': 'application/json'
-            }
-        })
+        await task()
     } catch(e) {
-        formError.value = 'Unable to reach server'
-        formProcessing.value = false
-        return
+        formError.value = e.message
     }
-
-    if(response.status === 400) {
-        formError.value = await response.text()
-        formProcessing.value = false
-        return
-    }
-
-    const responseData = await response.json()
-
-    settings.value.email = loginForm.value.email
-    settings.value.password = loginForm.value.password
-
-    store.token = responseData.token
-
-    loginForm.value.email = ''
-    loginForm.value.password = ''
 
     formProcessing.value = false
 }
 
-async function register() {
-    formProcessing.value = true
+const login = () => submit(async() => {
+    await store.signIn(loginForm.value.email, loginForm.value.password)
+    loginForm.value = { email: '', password: '' }
+})
 
-    formError.value = null
-
+const register = () => submit(async() => {
     if(registrationForm.value.password !== registrationForm.value.confirmPassword) {
-        formError.value = 'Password and Confirm Password do not match'
-        formProcessing.value = false
+        throw new Error('Password and Confirm Password do not match')
+    }
+
+    phrase.value = await store.register(registrationForm.value.email, registrationForm.value.password)
+    phraseSaved.value = false
+    registrationForm.value = { email: '', password: '', confirmPassword: '' }
+})
+
+const resetPassword = () => submit(async() => {
+    if(resetForm.value.password !== resetForm.value.confirmPassword) {
+        throw new Error('Password and Confirm Password do not match')
+    }
+
+    await store.resetPassword(resetForm.value.email, resetForm.value.phrase, resetForm.value.password)
+    resetForm.value = { email: '', phrase: '', password: '', confirmPassword: '' }
+    accountView.value = 'Login'
+})
+
+const changePassword = () => submit(async() => {
+    if(passwordForm.value.newPassword !== passwordForm.value.confirmPassword) {
+        throw new Error('New Password and Confirm Password do not match')
+    }
+
+    await store.changePassword(passwordForm.value.currentPassword, passwordForm.value.newPassword)
+    passwordForm.value = { currentPassword: '', newPassword: '', confirmPassword: '' }
+    showPasswordForm.value = false
+    alert('Password changed')
+})
+
+const encryptAccount = () => submit(async() => {
+    if(!confirm('Your notes will be encrypted on this device before they are sent to the server, so nobody but you can read them, not even on the server. If you forget your password, only the recovery phrase shown next can get them back. This cannot be turned off. Continue?')) {
         return
     }
 
-    let response
+    phrase.value = await store.encryptAccount()
+    phraseSaved.value = false
+})
 
-    try {
-        response = await fetch(`${import.meta.env.QUICK_NOTE_API_URL}/register`, {
-            method: 'POST',
-            body: JSON.stringify(registrationForm.value),
-            headers: {
-                'Content-Type': 'application/json'
-            }
-        })
-    } catch(e) {
-        formError.value = 'Unable to reach server'
-        formProcessing.value = false
+const newRecoveryPhrase = () => submit(async() => {
+    if(!confirm('The current recovery phrase will stop working. Continue?')) {
         return
     }
 
-    if(response.status === 400) {
-        formError.value = await response.text()
-        formProcessing.value = false
-        return
-    }
+    phrase.value = await store.newRecoveryPhrase()
+    phraseSaved.value = false
+})
 
-    const responseData = await response.json()
-
-    settings.value.email = registrationForm.value.email
-    settings.value.password = registrationForm.value.password
-
-    store.token = responseData.token
-
-    registrationForm.value.email = ''
-    registrationForm.value.password = ''
-    registrationForm.value.confirmPassword = ''
-
-    formProcessing.value = false
-}
-
-function changePassword() {
-    alert('Not Implemented')
+function copyPhrase() {
+    navigator.clipboard.writeText(phrase.value)
 }
 
 function logout() {
@@ -135,41 +131,33 @@ async function importFromWriter(e) {
     const fileInput = e.target.querySelector('input[type="file"]')
     const f = fileInput.files[0]
     const r = new FileReader()
-    r.onload = function() {
+    r.onload = async function() {
         const Uints = new Uint8Array(r.result)
+        // sql.js and its WebAssembly are only fetched here, not at startup
+        const [{ default: initSqlJs }, { default: sqlWasmUrl }] = await Promise.all([import('sql.js'), import('sql.js/dist/sql-wasm-browser.wasm?url')])
+        const SQL = await initSqlJs({ locateFile: () => sqlWasmUrl })
         const db = new SQL.Database(Uints)
 
         try {
             const categories = db.exec('SELECT * FROM categories')[0] ?? { values: [] }
             const notes = db.exec('SELECT * FROM entries')[0] ?? { values: [] }
 
-            categories.values.forEach(category => {
-                // skip already existing ids (= already imported)
-                if(store.categories.some(category2 => category2.id === category[0])) {
-                    console.log('Import From Writer: skipped category', category[0])
-                    return
-                }
-                store.addCategory(category[1], {
+            // ids already present are skipped by the store (= already imported)
+            store.addAll({
+                categories: categories.values.map(category => ({
                     id: category[0],
+                    name: category[1],
                     created: new Date(category[2] + 'Z').toISOString(),
                     modified: new Date(category[3] + 'Z').toISOString()
-                })
-                console.log('Import From Writer: imported category', category[0])
-            })
-
-            notes.values.forEach(note => {
-                // skip already existing ids (= already imported)
-                if(store.notes.some(note2 => note2.id === note[0])) {
-                    console.log('Import From Writer: skipped note', note[0])
-                    return
-                }
-                store.addNote(note[1], note[2], {
+                })),
+                notes: notes.values.map(note => ({
                     id: note[0],
-                    categoryId: note[5],
+                    title: note[1],
+                    content: note[2],
+                    categoryId: note[5] ?? null,
                     created: new Date(note[3] + 'Z').toISOString(),
                     modified: new Date(note[4] + 'Z').toISOString()
-                })
-                console.log('Import From Writer: imported note', note[0])
+                }))
             })
 
             alert('Import from Writer completed')
@@ -185,8 +173,8 @@ function goBack() {
     history.back()
 }
 
-function exportAllNotesAsJSON() {
-    const data = JSON.stringify({ categories: store.categories, notes: store.notes }, null, 4)
+async function exportAllNotesAsJSON() {
+    const data = JSON.stringify(await sync.allRows(), null, 4)
     const a = document.createElement('a')
     a.href = URL.createObjectURL(new Blob([data], { type: 'application/json' }))
     a.download = 'quick-note-backup.json'
@@ -200,11 +188,6 @@ watch(settings, () => {
     store.saveSettings()
 }, { deep: true })
 
-onMounted(async() => {
-    SQL = await initSqlJs({
-        locateFile: file => `/assets/${file}`
-    })
-})
 </script>
 
 <template>
@@ -243,8 +226,8 @@ onMounted(async() => {
                         <div style="margin-top: 1rem">
                             <div class="tabs-container">
                                 <div class="tabs" v-if="settings.email === ''">
-                                    <div :class="{ 'active': accountView === 'Login' }" @click="accountView = 'Login'">Login</div>
-                                    <div :class="{ 'active': accountView === 'Register' }" @click="accountView = 'Register'">Register</div>
+                                    <div :class="{ 'active': accountView === 'Login' }" @click="accountView = 'Login'; formError = ''">Login</div>
+                                    <div :class="{ 'active': accountView === 'Register' }" @click="accountView = 'Register'; formError = ''">Register</div>
                                 </div>
                                 <div style="padding: 1.5rem; width: 15rem;">
                                     <template v-if="settings.email === ''">
@@ -261,12 +244,10 @@ onMounted(async() => {
                                                     <input type="password" required v-model="loginForm.password" :disabled="formProcessing">
                                                 </label>
                                             </div>
-                                            <div style="margin-top: 1rem; text-align: right;">
+                                            <div style="margin-top: 1rem; display: flex; justify-content: space-between; align-items: center;">
+                                                <a href="#" @click.prevent="accountView = 'Reset'; formError = ''">Forgot password?</a>
                                                 <button v-if="!formProcessing">Login</button>
                                                 <button disabled v-else>Logging in...</button>
-                                            </div>
-                                            <div style="margin-top: 1rem; color: red; text-align: center;" v-if="formError">
-                                                Error: {{ formError }}
                                             </div>
                                         </form>
                                         <form @submit.prevent="register" v-show="accountView === 'Register'">
@@ -288,27 +269,107 @@ onMounted(async() => {
                                                     <input type="password" required v-model="registrationForm.confirmPassword" :disabled="formProcessing">
                                                 </label>
                                             </div>
+                                            <div style="margin-top: 1rem;">Your notes are encrypted on your device before they are sent, so only you can read them. You will get a recovery phrase for a forgotten password.</div>
                                             <div style="margin-top: 1rem; text-align: right;">
                                                 <button v-if="!formProcessing">Register</button>
                                                 <button disabled v-else>Registration in progress...</button>
                                             </div>
-                                            <div style="margin-top: 1rem; color: red; text-align: center;" v-if="formError">
-                                                Error: {{ formError }}
+                                        </form>
+                                        <form @submit.prevent="resetPassword" v-show="accountView === 'Reset'">
+                                            <div style="font-weight: 500">Reset Password</div>
+                                            <div style="margin-top: 0.5rem">Enter the recovery phrase you were given when the account was made or encrypted.</div>
+                                            <div style="margin-top: 1rem">
+                                                <label>
+                                                    Email<br>
+                                                    <input type="email" spellcheck="false" required v-model="resetForm.email" :disabled="formProcessing">
+                                                </label>
+                                            </div>
+                                            <div style="margin-top: 1rem">
+                                                <label>
+                                                    Recovery Phrase<br>
+                                                    <input type="text" spellcheck="false" autocomplete="off" required v-model="resetForm.phrase" :disabled="formProcessing">
+                                                </label>
+                                            </div>
+                                            <div style="margin-top: 1rem">
+                                                <label>
+                                                    New Password<br>
+                                                    <input type="password" required v-model="resetForm.password" :disabled="formProcessing">
+                                                </label>
+                                            </div>
+                                            <div style="margin-top: 1rem">
+                                                <label>
+                                                    Confirm Password<br>
+                                                    <input type="password" required v-model="resetForm.confirmPassword" :disabled="formProcessing">
+                                                </label>
+                                            </div>
+                                            <div style="margin-top: 1rem; display: flex; justify-content: space-between; align-items: center;">
+                                                <a href="#" @click.prevent="accountView = 'Login'; formError = ''">Back to login</a>
+                                                <button v-if="!formProcessing">Reset Password</button>
+                                                <button disabled v-else>Resetting...</button>
                                             </div>
                                         </form>
                                     </template>
                                     <template v-else>
                                         You are logged in as <span style="color: green; font-weight: 500;">{{ settings.email }}</span>
-                                        <div style="margin-top: 1rem">
-                                            <button @click="changePassword">Change Password</button>
+                                        <div style="margin-top: 1rem" v-if="!showPasswordForm">
+                                            <button @click="showPasswordForm = true; formError = ''">Change Password</button>
                                             <button @click="logout" style="margin-left: 1rem">Logout</button>
                                         </div>
+                                        <form @submit.prevent="changePassword" v-else style="margin-top: 1rem">
+                                            <div>
+                                                <label>
+                                                    Current Password<br>
+                                                    <input type="password" required v-model="passwordForm.currentPassword" :disabled="formProcessing">
+                                                </label>
+                                            </div>
+                                            <div style="margin-top: 1rem">
+                                                <label>
+                                                    New Password<br>
+                                                    <input type="password" required v-model="passwordForm.newPassword" :disabled="formProcessing">
+                                                </label>
+                                            </div>
+                                            <div style="margin-top: 1rem">
+                                                <label>
+                                                    Confirm Password<br>
+                                                    <input type="password" required v-model="passwordForm.confirmPassword" :disabled="formProcessing">
+                                                </label>
+                                            </div>
+                                            <div style="margin-top: 1rem; text-align: right;">
+                                                <button type="button" @click="showPasswordForm = false" :disabled="formProcessing">Cancel</button>
+                                                <button style="margin-left: 1rem" v-if="!formProcessing">Change Password</button>
+                                                <button style="margin-left: 1rem" disabled v-else>Changing...</button>
+                                            </div>
+                                        </form>
                                     </template>
+                                    <div style="margin-top: 1rem; color: red; text-align: center;" v-if="formError">
+                                        Error: {{ formError }}
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
+                <template v-if="settings.email !== ''">
+                    <div style="border-top: 1px solid var(--primary-border-color)"></div>
+                    <div style="padding: 1rem;">
+                        <div style="font-weight: 500">End-to-End Encryption</div>
+                        <div style="font-size: var(--secondary-font-size)">
+                            <template v-if="settings.encrypted">
+                                <div style="margin-top: 1rem;">Your notes are encrypted on this device before they are sent to the server. Only your password or your recovery phrase can unlock them.</div>
+                                <div style="margin-top: 1rem">
+                                    <button @click="newRecoveryPhrase" :disabled="formProcessing">New Recovery Phrase</button>
+                                </div>
+                            </template>
+                            <template v-else>
+                                <div style="margin-top: 1rem;">Your notes are stored readable on the server. Turn encryption on to have them encrypted on this device before they are sent, so only you can read them. You will get a recovery phrase for a forgotten password: without your password or the phrase, nobody can get the notes back.</div>
+                                <div style="margin-top: 1rem">
+                                    <button @click="encryptAccount" :disabled="formProcessing || store.connectionStatus !== 'Connected'">Turn On Encryption</button>
+                                    <span style="margin-left: 1rem" v-if="store.connectionStatus !== 'Connected'">Connect first</span>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </template>
                 <div style="border-top: 1px solid var(--primary-border-color)"></div>
                 <div style="padding: 1rem;">
                     <div style="font-weight: 500">Reset Application</div>
@@ -345,6 +406,22 @@ onMounted(async() => {
                     </div>
                 </div>
             </div>
+            <Modal v-if="phrase" @close="() => {}" style="padding: 1rem; max-width: 22rem;">
+                <div style="font-weight: 500">Your Recovery Phrase</div>
+                <div style="margin-top: 0.5rem; font-size: var(--secondary-font-size)">Write these twelve words down and keep them somewhere safe. They are the only way back into your notes if you forget your password. They are shown once and not stored anywhere.</div>
+                <div class="phrase">{{ phrase }}</div>
+                <div style="margin-top: 1rem; font-size: var(--secondary-font-size)">
+                    <button type="button" @click="copyPhrase">Copy</button>
+                </div>
+                <div style="margin-top: 1rem; font-size: var(--secondary-font-size)">
+                    <label>
+                        <input type="checkbox" v-model="phraseSaved"> I have written it down
+                    </label>
+                </div>
+                <div style="text-align: right; margin-top: 1rem;">
+                    <button type="button" :disabled="!phraseSaved" @click="phrase = ''">Done</button>
+                </div>
+            </Modal>
         </template>
     </Frame>
 </template>
@@ -384,6 +461,15 @@ onMounted(async() => {
     display: inline-block;
     border: 1px solid var(--primary-border-color);
     box-shadow: 0px 0px 2px rgb(0 0 0 / 12%), 0px 1px 8px -5px rgb(0 0 0 / 24%);
+}
+
+.phrase {
+    margin-top: 1rem;
+    padding: 1rem;
+    border: 1px solid var(--primary-border-color);
+    font-family: monospace;
+    line-height: 1.6;
+    user-select: all;
 }
 
 input[type="text"], input[type="email"], input[type="password"] {
@@ -427,13 +513,22 @@ button {
     padding: 0.4rem 0.8rem;
 }
 
+button:disabled {
+    color: #999;
+    cursor: default;
+}
+
 @media (hover: hover) {
-    button:hover {
+    button:hover:not(:disabled) {
         background-color: rgba(0, 0, 0, 0.048);
     }
 }
 
-button:active {
+button:active:not(:disabled) {
     background-color: rgba(0, 0, 0, 0.048);
+}
+
+a {
+    color: #e91e63;
 }
 </style>

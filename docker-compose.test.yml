@@ -1,0 +1,31 @@
+# A throwaway API and database for the end-to-end tests (Web-UI: npm run test:e2e).
+# Nothing here is meant for deployment.
+services:
+    db:
+        image: postgres:17
+        environment:
+            POSTGRES_PASSWORD: password
+            POSTGRES_DB: quicknote
+        healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U postgres -d quicknote"]
+            interval: 1s
+            retries: 30
+
+    api:
+        build: ./API
+        environment:
+            PGHOST: db
+            PGPORT: 5432
+            PGUSERNAME: postgres
+            PGPASSWORD: password
+            PGDATABASE: quicknote
+            JWT_SECRET: end-to-end-tests
+        ports:
+            - "16943:6943"
+        depends_on:
+            db:
+                condition: service_healthy
+        healthcheck:
+            test: ["CMD", "node", "-e", "fetch('http://localhost:6943/').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+            interval: 1s
+            retries: 30

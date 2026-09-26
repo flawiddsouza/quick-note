@@ -1,3 +1,5 @@
+import * as db from './db.js'
+
 export function requestValidator(fieldsToValidate) {
     return function(req, res, next) {
         for(const field of fieldsToValidate) {

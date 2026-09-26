@@ -1,19 +1,28 @@
 import sql from './sql.js'
 import bcrypt from 'bcrypt'
 import jwt from 'jsonwebtoken'
-import Automerge from 'automerge'
-import { serialize, deserialize } from 'bson'
-import { logger } from './logger.js'
 
 const saltRounds = 10
 
-export async function createUser(email, password) {
+// An encrypted account stores salt and wrapped_key: the server never sees the password or
+// the data key. `password` on the wire is a key derived from the password on the device,
+// and wrapped_key is the data key encrypted with another key derived from the password.
+// The recovery_* columns are the same pair derived from the recovery phrase.
+export const hashPassword = password => bcrypt.hashSync(password, saltRounds)
+
+export async function createUser(email, password, encryption = null) {
     try {
-        const hashedPassword = bcrypt.hashSync(password, saltRounds)
-        const [createdUser] = await sql`
-            insert into users(email, password) values(${email}, ${hashedPassword})
-            returning id, created_at, updated_at
-        `
+        const hashedPassword = hashPassword(password)
+        const [createdUser] = encryption
+            ? await sql`
+                insert into users(email, password, encrypted, salt, wrapped_key, recovery_salt, recovery_wrapped_key, recovery_password)
+                values(${email}, ${hashedPassword}, true, ${encryption.salt}, ${encryption.wrappedKey}, ${encryption.recoverySalt}, ${encryption.recoveryWrappedKey}, ${hashPassword(encryption.recoveryPassword)})
+                returning id, created_at, updated_at
+            `
+            : await sql`
+                insert into users(email, password) values(${email}, ${hashedPassword})
+                returning id, created_at, updated_at
+            `
         return createdUser
     } catch(e) {
         throw new Error('Email already registered')
@@ -31,16 +40,13 @@ export async function findUserByEmail(email) {
 }
 
 export async function validateUser(email, password) {
-    try {
-        const user = await findUserByEmail(email)
-        if(bcrypt.compareSync(password, user.password)) {
-            return { id: user.id }
-        } else {
-            throw new Error('Invalid password')
-        }
-    } catch(e) {
-        throw new Error(e.message)
+    const user = await findUserByEmail(email)
+
+    if(bcrypt.compareSync(password, user.password)) {
+        return user
     }
+
+    throw new Error('Invalid password')
 }
 
 export async function findUserById(id) {
@@ -53,150 +59,76 @@ export async function findUserById(id) {
     return user
 }
 
-export async function changeUserPassword(userId, currentPassword, newPassword) {
+// the new password of an encrypted account comes with the data key wrapped under it again
+export async function changeUserPassword(userId, currentPassword, newPassword, encryption = null) {
     const user = await findUserById(userId)
-    if(bcrypt.compareSync(currentPassword, user.password)) {
-        const hashedPassword = bcrypt.hashSync(newPassword, saltRounds)
-        await sql`update users set password=${hashedPassword}, updated_at=CURRENT_TIMESTAMP where id = ${userId}`
-    } else {
+    if(!bcrypt.compareSync(currentPassword, user.password)) {
         throw new Error('Invalid current password')
+    }
+    if(user.encrypted && !encryption) {
+        throw new Error('encryption field is required')
+    }
+
+    await sql`
+        update users set password = ${hashPassword(newPassword)},
+            salt = ${encryption?.salt ?? null}, wrapped_key = ${encryption?.wrappedKey ?? null},
+            updated_at = CURRENT_TIMESTAMP
+        where id = ${userId}
+    `
+}
+
+// forgotten password: the recovery phrase proves the account and unlocks the data key on the device
+export async function resetUserPassword(email, recoveryPassword, newPassword, encryption) {
+    const user = await findUserByEmail(email)
+    if(!user.encrypted || !bcrypt.compareSync(recoveryPassword, user.recovery_password)) {
+        throw new Error('Invalid recovery phrase')
+    }
+
+    await sql`
+        update users set password = ${hashPassword(newPassword)}, salt = ${encryption.salt}, wrapped_key = ${encryption.wrappedKey},
+            updated_at = CURRENT_TIMESTAMP
+        where id = ${user.id}
+    `
+}
+
+export async function setUserRecovery(userId, { recoverySalt, recoveryWrappedKey, recoveryPassword }) {
+    const updated = await sql`
+        update users set recovery_salt = ${recoverySalt}, recovery_wrapped_key = ${recoveryWrappedKey},
+            recovery_password = ${hashPassword(recoveryPassword)}, updated_at = CURRENT_TIMESTAMP
+        where id = ${userId} and encrypted
+        returning id
+    `
+    if(updated.length === 0) {
+        throw new Error('Account is not encrypted')
     }
 }
 
+// The token is fetched by the client on every start and reused for websocket reconnects
+// while the app stays open, so it has to outlive a session
 export function generateToken(userId) {
-    return jwt.sign({
-        userId: userId
-    }, process.env.JWT_SECRET, {
-        expiresIn: '30s'
-    });
+    return jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: '30d' })
 }
 
 export function validateToken(token) {
     return jwt.verify(token, process.env.JWT_SECRET)
 }
 
-async function getItem({ key, userId, clientId })  {
-    try {
-        let item
-        if(clientId) {
-            [item] = await sql`select * from user_client_store where key = ${key} AND user_id = ${userId} AND client_id = ${clientId}`
-        } else {
-            [item] = await sql`select * from user_store where key = ${key} AND user_id = ${userId}`
-        }
-        return item.value
-    } catch(e) {
-        return null
-    }
+export async function validateUserToken(token) {
+    const { userId } = validateToken(token)
+    const user = await findUserById(userId)
+    return { id: user.id }
 }
 
-async function setItem({ key, userId, clientId }, value) {
-    if(clientId) {
-        await sql`
-            insert into user_client_store(user_id, client_id, key, value) values(${userId}, ${clientId}, ${key}, ${value})
-            on conflict(user_id, client_id, key)
-            do update set value = ${value}, updated_at = CURRENT_TIMESTAMP
-        `
-    } else {
-        await sql`
-            insert into user_store(user_id, key, value) values(${userId}, ${key}, ${value})
-            on conflict(user_id, key)
-            do update set value = ${value}, updated_at = CURRENT_TIMESTAMP
-        `
-    }
+// document saved by the app before rows, used by cli/import-legacy-documents.js
+export async function getLegacyDocument(userId) {
+    const [row] = await sql`select value from user_store where user_id = ${userId} and key = 'automergeDoc'`
+    return row ? new Uint8Array(row.value) : null
 }
 
-async function removeItem({ key, userId, clientId }) {
-    if(clientId) {
-        await sql`delete from user_client_store where user_id=${userId} AND client_id=${clientId} AND key=${key}`
-    } else {
-        await sql`delete from user_store where user_id=${userId} AND key=${key}`
-    }
+export async function markLegacyImported(userId) {
+    await sql`update users set legacy_imported = true, updated_at = CURRENT_TIMESTAMP where id = ${userId}`
 }
 
-let automergeDocs = {}
-let automergeSyncStates = {}
-
-export async function getAutomergeDocForUser(userId) {
-    if(userId in automergeDocs) {
-        logger.log({ userId }, 'loaded savedAutomergeDoc from memory')
-        return automergeDocs[userId]
-    }
-
-    const savedAutomergeDoc = await getItem({ key: 'automergeDoc', userId })
-
-    if(savedAutomergeDoc) {
-        automergeDocs[userId] = Automerge.load(savedAutomergeDoc)
-
-        logger.log({ userId }, 'loaded savedAutomergeDoc')
-    } else {
-        const schema = Automerge.change(Automerge.init({ actorId: '0000' }), { time: 0 }, doc => {
-            doc.categories = []
-            doc.notes = []
-        })
-
-        const initChange = Automerge.getLastLocalChange(schema)
-
-        const [ initDoc ] = Automerge.applyChanges(Automerge.init(), [ initChange ])
-
-        automergeDocs[userId] = initDoc
-
-        logger.log({ userId }, 'unable to find savedAutomergeDoc, initialized automergeDoc')
-    }
-
-    return automergeDocs[userId]
-}
-
-export async function saveAutomergeDocForUser(userId, updatedAutomergeDoc) {
-    // update memory before awaiting the db write, so a message from another client of the
-    // same user that arrives during the write does not build on the old document
-    automergeDocs[userId] = updatedAutomergeDoc
-    await setItem({ key: 'automergeDoc', userId }, Automerge.save(updatedAutomergeDoc))
-
-    logger.log({ userId }, 'saved automergeDoc')
-}
-
-export async function getAutomergeSyncStateForClient(userId, clientId) {
-    if(userId in automergeSyncStates === false) {
-        automergeSyncStates[userId] = {}
-    }
-
-    if(clientId in automergeSyncStates[userId]) {
-        logger.log({ userId, clientId }, 'loaded savedAutomergeSyncState from memory')
-
-        return automergeSyncStates[userId][clientId]
-    }
-
-    const savedAutomergeSyncState = await getItem({ key: 'automergeSyncState', userId, clientId })
-
-    if(savedAutomergeSyncState) {
-        try {
-            automergeSyncStates[userId][clientId] = deserialize(savedAutomergeSyncState, { promoteBuffers: true })
-
-            logger.log({ userId, clientId }, 'loaded savedAutomergeSyncState')
-        } catch(e) {
-            automergeSyncStates[userId][clientId] = Automerge.initSyncState()
-
-            logger.log({ userId, clientId }, 'getAutomergeSyncStateForClient failed when deserializing savedAutomergeSyncState', e.message)
-        }
-    } else {
-        automergeSyncStates[userId][clientId] = Automerge.initSyncState()
-
-        logger.log({ userId, clientId }, 'unable to find savedAutomergeSyncState, initialized automergeSyncState')
-    }
-
-    return automergeSyncStates[userId][clientId]
-}
-
-export async function saveAutomergeSyncStateForClient(userId, clientId, updatedAutomergeSyncState) {
-    automergeSyncStates[userId][clientId] = updatedAutomergeSyncState
-    await setItem({ key: 'automergeSyncState', userId, clientId }, serialize(updatedAutomergeSyncState))
-
-    logger.log({ userId, clientId }, 'saved automergeSyncState')
-}
-
-export async function resetAutomergeSyncStateForClient(userId, clientId) {
-    await removeItem({ key: 'automergeSyncState', userId, clientId })
-    delete automergeSyncStates[userId][clientId]
-
-    logger.log({ userId, clientId }, 'reset automergeSyncState')
+export async function listUsers() {
+    return sql`select id, email, legacy_imported from users order by id`
 }
