@@ -4,6 +4,7 @@ import Home from './views/Home.vue'
 import Note from './views/Note.vue'
 import Settings from './views/Settings.vue'
 import AutoUpdate from './components/AutoUpdate.vue'
+import DialogHost from './components/DialogHost.vue'
 import { storeToRefs } from 'pinia'
 import { watch, onMounted } from 'vue'
 
@@ -52,4 +53,5 @@ onMounted(() => {
     <Note v-show="store.currentView === 'Note'" />
     <Settings v-show="store.currentView === 'Settings'" />
     <AutoUpdate />
+    <DialogHost />
 </template>

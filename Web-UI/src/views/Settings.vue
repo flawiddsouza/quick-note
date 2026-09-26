@@ -4,6 +4,7 @@ import { useStore } from '../store'
 import * as sync from '../sync'
 import Frame from '../components/Frame.vue'
 import Modal from '../components/Modal.vue'
+import { confirmDialog, showMessage } from '../dialogs'
 import { storeToRefs } from 'pinia'
 
 const store = useStore()
@@ -36,6 +37,8 @@ const formProcessing = ref(false)
 // the recovery phrase is shown once, right after it is made
 const phrase = ref('')
 const phraseSaved = ref(false)
+const phraseCopied = ref(false)
+const phraseCopyError = ref(false)
 
 // runs a form's request, keeping the error and the busy state in one place
 async function submit(task) {
@@ -63,6 +66,8 @@ const register = () => submit(async() => {
 
     phrase.value = await store.register(registrationForm.value.email, registrationForm.value.password)
     phraseSaved.value = false
+    phraseCopied.value = false
+    phraseCopyError.value = false
     registrationForm.value = { email: '', password: '', confirmPassword: '' }
 })
 
@@ -84,47 +89,71 @@ const changePassword = () => submit(async() => {
     await store.changePassword(passwordForm.value.currentPassword, passwordForm.value.newPassword)
     passwordForm.value = { currentPassword: '', newPassword: '', confirmPassword: '' }
     showPasswordForm.value = false
-    alert('Password changed')
+    showMessage({ title: 'Password changed', message: 'Your new password is ready to use.' })
 })
 
-const encryptAccount = () => submit(async() => {
-    if(!confirm('Your notes will be encrypted on this device before they are sent to the server, so nobody but you can read them, not even on the server. If you forget your password, only the recovery phrase shown next can get them back. This cannot be turned off. Continue?')) {
-        return
-    }
-
-    phrase.value = await store.encryptAccount()
-    phraseSaved.value = false
-})
-
-const newRecoveryPhrase = () => submit(async() => {
-    if(!confirm('The current recovery phrase will stop working. Continue?')) {
-        return
-    }
-
-    phrase.value = await store.newRecoveryPhrase()
-    phraseSaved.value = false
-})
-
-function copyPhrase() {
-    navigator.clipboard.writeText(phrase.value)
+async function encryptAccount() {
+    if(!await confirmDialog({
+        title: 'Turn on encryption?',
+        message: 'Your notes will be encrypted on this device before they are sent. Only your password or the recovery phrase shown next can unlock them. Encryption cannot be turned off.',
+        confirmLabel: 'Turn on encryption'
+    })) return
+    await submit(async() => {
+        phrase.value = await store.encryptAccount()
+        phraseSaved.value = false
+        phraseCopied.value = false
+        phraseCopyError.value = false
+    })
 }
 
-function logout() {
-    if(!confirm('Your notes will no longer be backed up once you log out but you\'ll still be able to access them on this device. Are you sure you want to proceed?')) {
-        return
-    }
+async function newRecoveryPhrase() {
+    if(!await confirmDialog({
+        title: 'Replace recovery phrase?',
+        message: 'Your current recovery phrase will stop working. Write down the new phrase when it appears.',
+        confirmLabel: 'Replace phrase',
+        destructive: true
+    })) return
+    await submit(async() => {
+        phrase.value = await store.newRecoveryPhrase()
+        phraseSaved.value = false
+        phraseCopied.value = false
+        phraseCopyError.value = false
+    })
+}
 
-    store.logout()
+async function copyPhrase() {
+    try {
+        await navigator.clipboard.writeText(phrase.value)
+        phraseCopied.value = true
+        phraseCopyError.value = false
+    } catch {
+        phraseCopied.value = false
+        phraseCopyError.value = true
+    }
+}
+
+async function logout() {
+    if(!await confirmDialog({
+        title: 'Log out?',
+        message: 'Your notes will stop backing up, but they will remain on this device.',
+        confirmLabel: 'Log out'
+    })) return
+    await store.logout()
 }
 
 async function resetApplication() {
-    if(!confirm('Resetting the application will wipe all your local notes and settings! Are you sure want to proceed?')) {
-        return
+    if(!await confirmDialog({
+        title: 'Reset application?',
+        message: 'This will delete all local notes and settings from this device. Notes in a sync account can be restored by logging in again.',
+        confirmLabel: 'Reset application',
+        destructive: true
+    })) return
+    try {
+        await store.resetApplication()
+        showMessage({ title: 'Application reset', message: 'Local notes and settings were removed.' })
+    } catch(e) {
+        showMessage({ title: 'Reset failed', message: e.message })
     }
-
-    await store.resetApplication()
-
-    alert('Application reset completed')
 }
 
 async function importFromWriter(e) {
@@ -132,13 +161,12 @@ async function importFromWriter(e) {
     const f = fileInput.files[0]
     const r = new FileReader()
     r.onload = async function() {
-        const Uints = new Uint8Array(r.result)
-        // sql.js and its WebAssembly are only fetched here, not at startup
-        const [{ default: initSqlJs }, { default: sqlWasmUrl }] = await Promise.all([import('sql.js'), import('sql.js/dist/sql-wasm-browser.wasm?url')])
-        const SQL = await initSqlJs({ locateFile: () => sqlWasmUrl })
-        const db = new SQL.Database(Uints)
-
         try {
+            const Uints = new Uint8Array(r.result)
+            // sql.js and its WebAssembly are only fetched here, not at startup
+            const [{ default: initSqlJs }, { default: sqlWasmUrl }] = await Promise.all([import('sql.js'), import('sql.js/dist/sql-wasm-browser.wasm?url')])
+            const SQL = await initSqlJs({ locateFile: () => sqlWasmUrl })
+            const db = new SQL.Database(Uints)
             const categories = db.exec('SELECT * FROM categories')[0] ?? { values: [] }
             const notes = db.exec('SELECT * FROM entries')[0] ?? { values: [] }
 
@@ -160,12 +188,13 @@ async function importFromWriter(e) {
                 }))
             })
 
-            alert('Import from Writer completed')
+            showMessage({ title: 'Import complete', message: 'Your Writer backup was imported.' })
         } catch(e) {
-            console.log('Import From Writer: Invalid backup file given', e.message)
-            alert('Unable to import from Writer. Invalid or corrupt backup file given.')
+            console.error('Import from Writer failed', e)
+            showMessage({ title: 'Import failed', message: 'The backup could not be imported. Check the file and try again.' })
         }
     }
+    r.onerror = () => showMessage({ title: 'Import failed', message: 'The Writer backup could not be read.' })
     r.readAsArrayBuffer(f)
 }
 
@@ -406,12 +435,13 @@ watch(settings, () => {
                     </div>
                 </div>
             </div>
-            <Modal v-if="phrase" @close="() => {}" style="padding: 1rem; max-width: 22rem;">
+            <Modal v-if="phrase" label="Your recovery phrase" :dismissible="false">
                 <div style="font-weight: 500">Your Recovery Phrase</div>
                 <div style="margin-top: 0.5rem; font-size: var(--secondary-font-size)">Write these twelve words down and keep them somewhere safe. They are the only way back into your notes if you forget your password. They are shown once and not stored anywhere.</div>
                 <div class="phrase">{{ phrase }}</div>
                 <div style="margin-top: 1rem; font-size: var(--secondary-font-size)">
-                    <button type="button" @click="copyPhrase">Copy</button>
+                    <button type="button" @click="copyPhrase">{{ phraseCopied ? 'Copied' : 'Copy' }}</button>
+                    <div v-if="phraseCopyError" role="alert" style="margin-top: 0.5rem; color: #b00020;">Could not copy. Select the words above and copy them.</div>
                 </div>
                 <div style="margin-top: 1rem; font-size: var(--secondary-font-size)">
                     <label>

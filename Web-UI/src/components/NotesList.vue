@@ -5,6 +5,7 @@ import * as sync from '../sync'
 import Modal from './Modal.vue'
 import dayjs from 'dayjs'
 import ContextMenu from './ContextMenu.vue'
+import { confirmDialog } from '../dialogs'
 
 const store = useStore()
 
@@ -81,15 +82,16 @@ const contextMenu = {
 
         showContextMenu.value = false
     },
-    delete() {
-        if(!confirm('Do you really want to delete this?')) {
-            showContextMenu.value = false
-            return
-        }
-
-        store.deleteNote(contextMenuNote.value.id)
-
+    async delete() {
+        const note = contextMenuNote.value
         showContextMenu.value = false
+        if(!await confirmDialog({
+            title: 'Delete note?',
+            message: `Delete "${note.title || note.snippet || 'Untitled note'}"? This cannot be undone.`,
+            confirmLabel: 'Delete note',
+            destructive: true
+        })) return
+        if(store.notes.some(item => item.id === note.id)) store.deleteNote(note.id)
     }
 }
 </script>
@@ -114,7 +116,7 @@ const contextMenu = {
         <div @click="contextMenu.delete">Delete</div>
     </ContextMenu>
     <transition name="fade">
-        <Modal v-if="showDetailsModal" @close="showDetailsModal = false">
+        <Modal v-if="showDetailsModal" label="Note details" @close="showDetailsModal = false">
             <div>Created on: {{ dayjs(contextMenuNote.created).format('DD-MMM-YY hh:mm A') }}</div>
             <div>Updated on: {{ dayjs(contextMenuNote.modified).format('DD-MMM-YY hh:mm A') }}</div>
         </Modal>

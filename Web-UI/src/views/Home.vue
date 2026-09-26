@@ -100,7 +100,7 @@ function openSettings() {
                 </div>
             </template>
         </Frame>
-        <Modal v-if="showAddCategoryModal" @close="showAddCategoryModal = false" style="padding: 1rem">
+        <Modal v-if="showAddCategoryModal" label="Add category" @close="showAddCategoryModal = false">
             <form @submit.prevent="addCategory">
                 <label>
                     <div style="font-weight: 500; margin-bottom: 0.5rem;">Enter Category Name</div>

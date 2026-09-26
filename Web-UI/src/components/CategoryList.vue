@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { useStore } from '../store'
 import ContextMenu from './ContextMenu.vue'
 import Modal from './Modal.vue'
+import { confirmDialog } from '../dialogs'
 
 const store = useStore()
 const contextMenuPosition = ref({ x: '-9999px', y: 0 })
@@ -39,15 +40,16 @@ const contextMenu = {
         showRenameCategoryModal.value = true
         showContextMenu.value = false
     },
-    delete() {
-        if(!confirm('Deleting a category will also delete all the notes under it! Do you really want to do this?')) {
-            showContextMenu.value = false
-            return
-        }
-
-        store.deleteCategory(contextMenuCategory.value.id)
-
+    async delete() {
+        const category = contextMenuCategory.value
         showContextMenu.value = false
+        if(!await confirmDialog({
+            title: 'Delete category?',
+            message: `Delete "${category.name}" and all its notes? This cannot be undone.`,
+            confirmLabel: 'Delete category',
+            destructive: true
+        })) return
+        if(store.categories.some(item => item.id === category.id)) store.deleteCategory(category.id)
     }
 }
 
@@ -72,7 +74,7 @@ const vFocus = {
         <div @click="contextMenu.rename">Rename</div>
         <div @click="contextMenu.delete">Delete</div>
     </ContextMenu>
-    <Modal v-if="showRenameCategoryModal" @close="showRenameCategoryModal = false" style="padding: 1rem">
+    <Modal v-if="showRenameCategoryModal" label="Rename category" @close="showRenameCategoryModal = false">
         <form @submit.prevent="renameCategory">
             <label>
                 <div style="font-weight: 500; margin-bottom: 0.5rem;">Rename Category</div>

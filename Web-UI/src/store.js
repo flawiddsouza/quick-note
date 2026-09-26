@@ -3,6 +3,7 @@ import { getItem, setItem, deleteItem } from './db'
 import { nanoid } from 'nanoid'
 import * as sync from './sync'
 import * as account from './account'
+import { showMessage } from './dialogs'
 
 const apiUrl = import.meta.env.QUICK_NOTE_API_URL
 const websocketUrl = import.meta.env.QUICK_NOTE_WEBSOCKET_URL
@@ -84,7 +85,7 @@ export const useStore = defineStore('store', {
                 })
             } catch(e) {
                 console.error('Could not open notes', e)
-                alert('Could not open your notes. Please reload the app.')
+                showMessage({ title: 'Could not open notes', message: 'Please reload the app and try again.' })
                 return
             }
 
@@ -117,7 +118,7 @@ export const useStore = defineStore('store', {
                 if(e.status === 400) {
                     // the password or the account changed elsewhere
                     await this.logout()
-                    alert(`Login failed: ${e.message}. Please log in again.`)
+                    showMessage({ title: 'Login failed', message: `${e.message}. Please log in again.` })
                 } else {
                     this.connectionStatus = 'Disconnected'
                     loginRetry = setTimeout(() => this.login(), loginRetryDelay)
